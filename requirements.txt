@@ -1,0 +1,4 @@
+Django==1.4.3
+psycopg2==2.4.6
+pytz==2012j
+wsgiref==0.1.2
