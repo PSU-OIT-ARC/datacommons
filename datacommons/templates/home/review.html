@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Hello World</h1>
+<table>
+    {% for row in rows %}
+        <tr>
+            {% for col in row %}
+                <td>{{ col }}</td>
+            {% endfor %}
+        </tr>
+    {% endfor %}
+</table>
+{% endblock %}

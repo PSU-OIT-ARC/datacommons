@@ -1,4 +1,16 @@
 {% extends "base.html" %}
 {% block body %}
 <h1>Hello World</h1>
+<form action="/upload" method="post" enctype="multipart/form-data">
+{% csrf_token %}
+<input type="file" name="file" />
+<input type="submit" name="submit" value="Upload" />
+
+<label>Upload to</label>
+<select name="schema">
+    {% for schema in schemas %}
+        <option value="{{ schema }}">{{ schema }}</option>
+    {% endfor %}
+</select>
+</form>
 {% endblock %}

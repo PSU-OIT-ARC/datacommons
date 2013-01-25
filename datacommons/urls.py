@@ -8,6 +8,9 @@ admin.autodiscover()
 urlpatterns = patterns('',
     # Examples:
     url(r'^$', home.index, name='home'),
+    url(r'^upload/?$', home.upload),
+    url(r'^preview/?$', home.preview, name="preview"),
+    url(r'^review/?$', home.review, name="review"),
     # url(r'^datacommons/', include('datacommons.foo.urls')),
 
     # Uncomment the admin/doc line below to enable admin documentation:

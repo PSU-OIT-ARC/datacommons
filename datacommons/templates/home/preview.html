@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block body %}
+{% load dictlookup %}
+
+<form action="" method="post">
+{% csrf_token %}
+<label>Table</label>
+{% if errors.table %}<p class="error">{{ errors.table }}</p>{% endif %}
+<input type="text" name="table" value="{{ request.POST.table }}" />
+<table>
+    <thead>
+        <tr>
+            {% for name in column_names %}
+                <td>
+                    {% if forloop.counter0 in errors.column_names %}<p class="error">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
+                    <input type="text" name="column_names" value="{{ name }}" /></td>
+            {% endfor %}
+        </tr>
+        <tr>
+            {% for selected_type in column_types %}
+                <td>
+                    <select name="column_types">
+                        {% for type_id, name in available_types.items %}
+                            <option value="{{ type_id }}" {% if selected_type == type_id %}selected="selected"{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </td>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in data %}
+            <tr>
+                {% for col in row %}
+                    <td>{{ col }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<input type="hidden" name="upload_id" value="{{ upload_id }}" />
+<input type="submit" name="submit" value="Insert" />
+</form>
+
+{% endblock %}
