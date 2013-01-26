@@ -38,3 +38,14 @@ a:link, a:visited, a:hover {
 a:hover {
     text-decoration:none;
 }
+
+label {
+    display:block;
+    font-weight:bold;
+}
+
+.error {
+    color:#ff0000;
+    font-weight:bold;
+}
+

@@ -1,7 +1,15 @@
 {% extends "base.html" %}
 {% block body %}
-<h1>Hello World</h1>
+{{ cols|pprint }}
+<h1>{{ upload.schema }}.{{ upload.table }}</h1>
 <table>
+    <thead>
+        <tr>
+        {% for col in cols %}
+            <th>{{ col.name }}</th>
+        {% endfor %}
+        </tr>
+    </thead>
     {% for row in rows %}
         <tr>
             {% for col in row %}

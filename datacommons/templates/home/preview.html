@@ -4,17 +4,34 @@
 
 <form action="" method="post">
 {% csrf_token %}
-<label>Table</label>
-{% if errors.table %}<p class="error">{{ errors.table }}</p>{% endif %}
-<input type="text" name="table" value="{{ request.POST.table }}" />
+{% if mode == "create" %}
+    <label>Table</label>
+    {% if errors.table %}<p class="error">{{ errors.table }}</p>{% endif %}
+    <input type="text" name="table" value="{{ request.POST.table }}" />
+{% else %}
+    <h2>Append to {{ upload.table }}</h2>
+{% endif %}
 <table>
     <thead>
         <tr>
-            {% for name in column_names %}
-                <td>
-                    {% if forloop.counter0 in errors.column_names %}<p class="error">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
-                    <input type="text" name="column_names" value="{{ name }}" /></td>
-            {% endfor %}
+            {% if mode == "create" %}
+                {% for name in column_names %}
+                    <td>
+                        {% if forloop.counter0 in errors.column_names %}<p class="error">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
+                        <input type="text" name="column_names" value="{{ name }}" />
+                    </td>
+                {% endfor %}
+            {% else %}
+                {% for csv_name in column_names %}
+                    <td>
+                        <select name="column_names">
+                        {% for name in existing_column_names %}
+                            <option value="{{ name }}" {% if csv_name == name %}selected="selected"{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                        </select>
+                    </td>
+                {% endfor %}
+            {% endif %}
         </tr>
         <tr>
             {% for selected_type in column_types %}
@@ -38,7 +55,7 @@
         {% endfor %}
     </tbody>
 </table>
-<input type="hidden" name="upload_id" value="{{ upload_id }}" />
+<input type="hidden" name="upload_id" value="{{ upload.pk }}" />
 <input type="submit" name="submit" value="Insert" />
 </form>
 

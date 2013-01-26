@@ -33,11 +33,50 @@ def getSchemas():
     
     return schemas
 
+def getTablesForAllSchemas():
+    cursor = connection.cursor()
+    cursor.execute("""
+        SELECT 
+            table_schema,
+            table_name
+        FROM 
+            information_schema.tables 
+        WHERE 
+            table_schema NOT LIKE 'pg_%%' AND 
+            table_schema NOT IN('information_schema', 'public');
+    """)
+    schemas = {}
+    for row in cursor.fetchall():
+        schema = row[0]
+        table = row[1]
+        schemas.setdefault(schema, []).append(table)
+    
+    return schemas
+
 def isSaneName(value):
     return value == sanitize(value) and len(value) >= 1
 
 def sanitize(value):
     return re.sub(r'[^A-Za-z_0-9]', '', value)
+
+def getColumnsForTable(schema, table):
+    schema = sanitize(schema)
+    table = sanitize(table)
+    cursor = connection.cursor()
+    sql = """
+        SELECT 
+            column_name,
+            data_type
+        FROM 
+            information_schema.columns 
+        WHERE 
+            table_schema = %s AND table_name = %s
+    """
+    cursor.execute(sql, (schema, table))
+    rows = []
+    for row in cursor.fetchall():
+        rows.append(row[0])
+    return rows
 
 def insertCSVInto(filename, schema_name, table_name, column_names, commit=False):
     schema_name = sanitize(schema_name)
@@ -49,14 +88,16 @@ def insertCSVInto(filename, schema_name, table_name, column_names, commit=False)
 
     path = os.path.join(SETTINGS.MEDIA_ROOT, filename)
     cursor = connection.cursor()
-    cols = ','.join(column_names)
+    cols = ','.join(['"' + n + '"' for n in column_names])
     escape_string = ",".join(["%s" for i in range(len(column_names))])
     sql = """INSERT INTO "%s"."%s" (%s) VALUES(%s)""" % (schema_name, table_name, cols, escape_string)
     with open(path, 'rb') as csvfile:
         reader = csv.reader(csvfile)
         for i, row in enumerate(reader):
             if i == 0: continue
-            # insert the row
+            # convert empty strings to null
+            for i, col in enumerate(row):
+                row[i] = col if col != "" else None
             cursor.execute(sql, row)
 
     if commit:
@@ -68,7 +109,7 @@ def createTable(schema_name, table_name, column_names, column_types, commit=Fals
     table_name = sanitize(table_name)
     names = []
     for name in column_names:
-        names.append(sanitize(name))
+        names.append('"' + sanitize(name) + '"')
     column_names = names
 
     types = []
@@ -97,5 +138,5 @@ def fetchRowsFor(schema, table):
     table = sanitize(table)
     cursor = connection.cursor()
     cursor.execute("""SELECT * FROM "%s"."%s\"""" % (schema, table))
-    return cursor.fetchall()
+    return cursor.fetchall(), cursor.description
 

@@ -38,7 +38,7 @@ class CSVUpload(models.Model):
     created_on = models.DateTimeField(auto_now_add=True)
     filename = models.CharField(max_length=255)
     schema = models.CharField(max_length=255)
-    table = models.CharField(max_length=255)
+    table = models.CharField(max_length=255, null=True)
     name = models.CharField(max_length=255, default="")
     status = models.IntegerField(default=0)
 

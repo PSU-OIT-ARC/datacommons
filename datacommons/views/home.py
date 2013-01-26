@@ -1,5 +1,6 @@
 import os
 import re
+import json
 from django.conf import settings as SETTINGS
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
@@ -11,28 +12,56 @@ from ..uploader.helpers import (
     insertCSVInto, 
     isSaneName,
     fetchRowsFor,
+    getTablesForAllSchemas,
+    getColumnsForTable,
 )
 from ..uploader.csvinspector import parseCSV
 from ..uploader.models import ColumnTypes, CSVUpload
 
 def index(request):
-    schemas = getSchemas()
+    schemas = getTablesForAllSchemas()
+    errors = {}
+    if request.POST:
+        # check for errors
+        file = request.FILES.get('file', None)
+        schema = request.POST.get('schema', None)
+        if schema not in schemas:
+            errors['schema'] = "Please choose a schema"
+
+        table = request.POST.get('table', None)
+        mode = request.POST.get('mode', None)
+        if mode == "create":
+            table = None
+        elif mode == "append":
+            if table not in schemas.get(schema, []):
+                errors['table'] = "Please choose a table"
+        else:
+            errors['mode'] = "Please choose a mode"
+
+        if not file:
+            errors['file'] = "Please choose a CSV to upload"
+
+        # everything checked out, so attempt an upload
+        if len(errors) == 0:
+            path = handleUploadedCSV(file)
+            filename = os.path.basename(path)
+
+        if len(errors) == 0:
+            r = CSVUpload()
+            r.filename = filename
+            r.schema = schema
+            r.table = table
+            r.name = "Nothing"
+            r.save()
+
+            return HttpResponseRedirect(reverse("preview") + "?upload_id=" + str(r.pk))
+
+    schemas_json = json.dumps(schemas)
     return render(request, 'home/index.html', {
-        "schemas": getSchemas,
+        "schemas": schemas,
+        "schemas_json": schemas_json,
+        "errors": errors,
     })
-
-def upload(request):
-    file = request.FILES['file']
-    path = handleUploadedCSV(file)
-    filename = os.path.basename(path)
-    
-    r = CSVUpload()
-    r.filename = filename
-    r.schema = request.POST['schema']
-    r.name = "Nothing"
-    r.save()
-
-    return HttpResponseRedirect(reverse("preview") + "?upload_id=" + str(r.pk))
 
 def preview(request):
     upload = CSVUpload.objects.get(pk=request.REQUEST['upload_id'])
@@ -66,6 +95,14 @@ def preview(request):
         column_names = c_names
         column_types = c_types
 
+    # grab the columns from the existing table
+    if upload.table is not None:
+        existing_column_names = getColumnsForTable(upload.schema, upload.table)
+        mode = "append"
+    else:
+        existing_column_names = None
+        mode = "create"
+
     available_types = ColumnTypes.DESCRIPTION
 
     return render(request, "home/preview.html", {
@@ -74,15 +111,20 @@ def preview(request):
         'column_types': column_types,
         'type_names': type_names,
         'available_types': available_types,
-        'upload_id': upload.pk,
+        'upload': upload,
         'errors': errors,
+        'existing_column_names': existing_column_names,
+        'mode': mode,
     })
 
 def review(request):
     # need authorization
     upload = CSVUpload.objects.get(pk=request.REQUEST['upload_id'])
+    rows, cols = fetchRowsFor(upload.schema, upload.table)
     return render(request, "home/review.html", {
-        "rows": fetchRowsFor(upload.schema, upload.table)
+        "upload": upload,
+        "rows": rows,
+        "cols": cols,
     })
 
 
