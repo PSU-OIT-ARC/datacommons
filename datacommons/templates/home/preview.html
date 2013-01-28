@@ -4,7 +4,10 @@
 
 <form action="" method="post">
 {% csrf_token %}
-{% if mode == "create" %}
+{% if errors.form %}
+    <p class="error">{{ errors.form }}</p>
+{% endif %}
+{% if upload.mode == upload.CREATE %}
     <label>Table</label>
     {% if errors.table %}<p class="error">{{ errors.table }}</p>{% endif %}
     <input type="text" name="table" value="{{ request.POST.table }}" />
@@ -14,7 +17,7 @@
 <table>
     <thead>
         <tr>
-            {% if mode == "create" %}
+            {% if upload.mode == upload.CREATE %}
                 {% for name in column_names %}
                     <td>
                         {% if forloop.counter0 in errors.column_names %}<p class="error">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
@@ -24,25 +27,35 @@
             {% else %}
                 {% for csv_name in column_names %}
                     <td>
-                        <select name="column_names">
-                        {% for name in existing_column_names %}
-                            <option value="{{ name }}" {% if csv_name == name %}selected="selected"{% endif %}>{{ name }}</option>
+                        {% if forloop.counter0 in errors.column_names %}<p class="error">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
+                        <select name="column_names" class="column-name" id="typename-{{ forloop.counter0 }}">
+                        {% for c in existing_columns %}
+                            <option value="{{ c.name }}" {% if csv_name == c.name %}selected="selected"{% endif %}>{{ c.name }}</option>
                         {% endfor %}
+                        {% if column_names|length > existing_columns|length %}
+                            <option value="">Truncate</option>
+                        {% endif %}
                         </select>
                     </td>
                 {% endfor %}
             {% endif %}
         </tr>
         <tr>
-            {% for selected_type in column_types %}
-                <td>
-                    <select name="column_types">
-                        {% for type_id, name in available_types.items %}
-                            <option value="{{ type_id }}" {% if selected_type == type_id %}selected="selected"{% endif %}>{{ name }}</option>
-                        {% endfor %}
-                    </select>
-                </td>
-            {% endfor %}
+            {% if upload.mode == upload.CREATE %}
+                {% for selected_type in column_types %}
+                    <td>
+                        <select name="column_types">
+                            {% for type_id, name in available_types.items %}
+                                <option value="{{ type_id }}" {% if selected_type == type_id %}selected="selected"{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                {% endfor %}
+            {% else %}
+                {% for name in column_names %}
+                    <td id="typelabel-{{ forloop.counter0}}"></td>
+                {% endfor %}
+            {% endif %}
         </tr>
     </thead>
     <tbody>
@@ -58,5 +71,48 @@
 <input type="hidden" name="upload_id" value="{{ upload.pk }}" />
 <input type="submit" name="submit" value="Insert" />
 </form>
+
+<script type="text/javascript">
+
+{% if upload.mode == upload.APPEND %}
+    var COLUMN_NAME_TO_TYPE = {{ existing_columns_json|safe }};
+    var TYPE_TO_STRING = {{ pretty_type_name|safe }};
+    var map = []
+    for(var i = 0; i < COLUMN_NAME_TO_TYPE.length; i++){
+        var item = COLUMN_NAME_TO_TYPE[i];
+        map[item['name']] = item['type'];
+    }
+    COLUMN_NAME_TO_TYPE = map
+
+    $(document).ready(function(){
+        $('.column-name').bind('click blur change', function(e){
+            var el = $(this);
+            var id = el.attr('id').split("-")[1]
+            // make the selections in the select boxes mutually exclusive
+            var all = $('.column-name');
+            for(var i = 0; i < all.length; i++){
+                if(i == id) continue;
+                var selectbox = $(all[i]);
+                if(selectbox.val() == el.val()){
+                    selectbox.val("")
+                }
+            }
+
+            var name = el.val();
+            if(!(name in COLUMN_NAME_TO_TYPE)){
+                var label = "Truncate";
+            } else {
+                var type = COLUMN_NAME_TO_TYPE[name];
+                var label = TYPE_TO_STRING[type];
+            }
+            $('#typelabel-' + id).text(label);
+
+        });
+
+        $('.column-name').click()
+    });
+{% endif %}
+
+</script>
 
 {% endblock %}

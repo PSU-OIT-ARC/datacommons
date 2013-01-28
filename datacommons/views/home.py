@@ -5,17 +5,18 @@ from django.conf import settings as SETTINGS
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
 from django.core.urlresolvers import reverse
-from ..uploader.helpers import (
+from ..uploader.csvhelpers import (
     handleUploadedCSV, 
-    getSchemas, 
-    createTable, 
     insertCSVInto, 
+    parseCSV
+)
+from ..uploader.dbhelpers import (
     isSaneName,
     fetchRowsFor,
     getTablesForAllSchemas,
     getColumnsForTable,
+    createTable, 
 )
-from ..uploader.csvinspector import parseCSV
 from ..uploader.models import ColumnTypes, CSVUpload
 
 def index(request):
@@ -23,34 +24,39 @@ def index(request):
     errors = {}
     if request.POST:
         # check for errors
-        file = request.FILES.get('file', None)
         schema = request.POST.get('schema', None)
         if schema not in schemas:
             errors['schema'] = "Please choose a schema"
 
         table = request.POST.get('table', None)
-        mode = request.POST.get('mode', None)
-        if mode == "create":
+        mode = int(request.POST.get('mode', 0))
+        if mode == CSVUpload.CREATE:
             table = None
-        elif mode == "append":
+        elif mode == CSVUpload.APPEND:
             if table not in schemas.get(schema, []):
                 errors['table'] = "Please choose a table"
         else:
             errors['mode'] = "Please choose a mode"
 
+        file = request.FILES.get('file', None)
         if not file:
             errors['file'] = "Please choose a CSV to upload"
 
         # everything checked out, so attempt an upload
         if len(errors) == 0:
-            path = handleUploadedCSV(file)
-            filename = os.path.basename(path)
+            try:
+                path = handleUploadedCSV(file)
+            except TypeError as e:
+                errors['file'] = str(e)
 
+        # upload was successful so save state, and move to the preview
         if len(errors) == 0:
+            filename = os.path.basename(path)
             r = CSVUpload()
             r.filename = filename
             r.schema = schema
             r.table = table
+            r.mode = mode
             r.name = "Nothing"
             r.save()
 
@@ -61,28 +67,41 @@ def index(request):
         "schemas": schemas,
         "schemas_json": schemas_json,
         "errors": errors,
+        "CSVUpload": CSVUpload,
     })
 
 def preview(request):
     upload = CSVUpload.objects.get(pk=request.REQUEST['upload_id'])
-    c_names, data, c_types, type_names = parseCSV(upload.filename)
+    # fetch the meta data about the csv
+    column_names, data, column_types, type_names = parseCSV(upload.filename)
+    # grab the columns from the existing table
+    if upload.mode == CSVUpload.APPEND:
+        existing_columns = getColumnsForTable(upload.schema, upload.table)
+    else:
+        existing_columns = None
     errors = {}
-    if request.POST:
-        table = request.POST.get("table", None)
-        column_names = request.POST.getlist("column_names")
-        column_types = request.POST.getlist("column_types")
 
-        # check sanity of names and column types
+    if request.POST and upload.mode == upload.CREATE: 
+        # this branch is for creating a new table
+        # valid table name?
+        table = request.POST.get("table", None)
         if not isSaneName(table):
             errors['table'] = "Invalid name"
+
+        # valid column names?
+        column_names = request.POST.getlist("column_names")
         for i, name in enumerate(column_names):
             if not isSaneName(name):
                 errors.setdefault('column_names', {})[i] = "Invalid name"
-        for i, id in enumerate(column_types):
-            id = int(id)
-            column_types[i] = id
-            if id not in ColumnTypes.DESCRIPTION:
-                errors.setdefault('column_types', {})[i] = "Invalid column type"
+
+        # valid column types?
+        column_types = request.POST.getlist("column_types")
+        for column_index, column_type_id in enumerate(column_types):
+            # convert to an int
+            column_type_id = int(column_type_id)
+            column_types[column_index] = column_type_id
+            if not ColumnTypes.isValidType(column_type_id):
+                errors.setdefault('column_types', {})[column_index] = "Invalid column type"
 
         if len(errors) == 0:
             upload.table = table
@@ -91,17 +110,37 @@ def preview(request):
             createTable(upload.schema, upload.table, column_names, column_types)
             insertCSVInto(upload.filename, upload.schema, upload.table, column_names, commit=True)
             return HttpResponseRedirect(reverse('review') + "?upload_id=" + str(upload.pk))
-    else:
-        column_names = c_names
-        column_types = c_types
+    elif request.POST and upload.mode == upload.APPEND: 
+        # branch for appending to a table
+        column_names = request.POST.getlist("column_names")
+        defined_columns = []
+        column_name_to_column_index = {}
+        # valid column names?
+        for i, name in enumerate(column_names):
+            if name == "": continue # truncate the column
 
-    # grab the columns from the existing table
-    if upload.table is not None:
-        existing_column_names = getColumnsForTable(upload.schema, upload.table)
-        mode = "append"
-    else:
-        existing_column_names = None
-        mode = "create"
+            if not isSaneName(name):
+                errors.setdefault('column_names', {})[i] = "Invalid name"
+            else:
+                defined_columns.append(name);
+                column_name_to_column_index[name] = i
+
+        if len(errors) == 0:
+            # make sure all the columns are defined for the existing table
+            existing = [c['name'] for c in existing_columns]
+            if set(defined_columns) != set(existing):
+                errors['form'] = "Not all columns defined"
+
+            if len(errors) == 0:
+                insertCSVInto(
+                    upload.filename, 
+                    upload.schema, 
+                    upload.table, 
+                    existing, 
+                    commit=True, 
+                    column_name_to_column_index=column_name_to_column_index
+                )
+                return HttpResponseRedirect(reverse('review') + "?upload_id=" + str(upload.pk))
 
     available_types = ColumnTypes.DESCRIPTION
 
@@ -109,12 +148,12 @@ def preview(request):
         'column_names': column_names,
         'data': data,
         'column_types': column_types,
-        'type_names': type_names,
         'available_types': available_types,
         'upload': upload,
         'errors': errors,
-        'existing_column_names': existing_column_names,
-        'mode': mode,
+        'existing_columns': existing_columns,
+        'existing_columns_json': json.dumps(existing_columns),
+        'pretty_type_name': json.dumps(ColumnTypes.DESCRIPTION),
     })
 
 def review(request):
