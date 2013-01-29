@@ -39,20 +39,27 @@ def getTablesForAllSchemas():
     cursor = connection.cursor()
     cursor.execute("""
         SELECT 
-            table_schema,
-            table_name
+            schema_name, 
+            table_name 
         FROM 
+            information_schema.schemata 
+        LEFT JOIN 
             information_schema.tables 
-        WHERE 
-            table_schema NOT LIKE 'pg_%%' AND 
-            table_schema NOT IN('information_schema', 'public');
+        ON 
+            table_schema = schema_name 
+        WHERE
+            schema_name NOT LIKE 'pg_%%' AND 
+            schema_name != 'information_schema';
     """)
     schemas = {}
     for row in cursor.fetchall():
         schema = row[0]
         table = row[1]
-        schemas.setdefault(schema, []).append(table)
-    
+        if table is not None:
+            schemas.setdefault(schema, []).append(table)
+        else:
+            schemas.setdefault(schema, [])
+
     return schemas
 
 def getColumnsForTable(schema, table):

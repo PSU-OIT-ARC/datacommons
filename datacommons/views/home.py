@@ -24,10 +24,12 @@ def index(request):
     errors = {}
     if request.POST:
         # check for errors
+        # valid schema?
         schema = request.POST.get('schema', None)
         if schema not in schemas:
             errors['schema'] = "Please choose a schema"
 
+        # valid table (if the mode is append)?
         table = request.POST.get('table', None)
         mode = int(request.POST.get('mode', 0))
         if mode == CSVUpload.CREATE:
@@ -38,11 +40,12 @@ def index(request):
         else:
             errors['mode'] = "Please choose a mode"
 
+        # is there a file?
         file = request.FILES.get('file', None)
         if not file:
             errors['file'] = "Please choose a CSV to upload"
 
-        # everything checked out, so attempt an upload
+        # everything checked out, so can we upload?
         if len(errors) == 0:
             try:
                 path = handleUploadedCSV(file)
@@ -80,7 +83,7 @@ def preview(request):
     else:
         existing_columns = None
     errors = {}
-
+    
     if request.POST and upload.mode == upload.CREATE: 
         # this branch is for creating a new table
         # valid table name?
@@ -110,6 +113,7 @@ def preview(request):
             createTable(upload.schema, upload.table, column_names, column_types)
             insertCSVInto(upload.filename, upload.schema, upload.table, column_names, commit=True)
             return HttpResponseRedirect(reverse('review') + "?upload_id=" + str(upload.pk))
+
     elif request.POST and upload.mode == upload.APPEND: 
         # branch for appending to a table
         column_names = request.POST.getlist("column_names")
