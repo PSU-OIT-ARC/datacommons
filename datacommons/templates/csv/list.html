@@ -5,11 +5,15 @@
 <ol>
 {% for schema, tables in schemas.items %}
     <li>{{ schema }}
-        <ol>
-        {% for table, columns in tables.items %}
-            <li><a href="{% url "csv-view" schema table %}">{{ table }}</a>
-        {% endfor %}
-        </ol>
+        {% if tables|length > 0 %}
+            <ol>
+            {% for table, columns in tables.items %}
+                <li><a href="{% url "csv-view" schema table %}">{{ table }}</a>
+            {% endfor %}
+            </ol>
+        {% else %}
+            (empty)
+        {% endif %}
     </li>
 {% endfor %}
 </ol>
