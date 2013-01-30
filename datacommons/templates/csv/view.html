@@ -1,6 +1,9 @@
 {% extends "main.html" %}
 {% block content %}
-<h2>{{ upload.schema }}.{{ upload.table }}</h2>
+<h2>{{ schema }}.{{ table }}</h2>
+{% if upload %}
+    <p class="success">You successfully imported the CSV!</p>
+{% endif %}
 <table id="preview">
     <thead>
         <tr>

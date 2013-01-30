@@ -1,6 +1,6 @@
-{% extends "base.html" %}
-{% block body %}
-<h1>Hello World</h1>
+{% extends "main.html" %}
+{% block content %}
+<h2>Import a CSV</h2>
 <form action="" method="post" enctype="multipart/form-data">
 {% csrf_token %}
 <label>Which schema should this CSV be imported into?</label>
@@ -23,14 +23,16 @@
 </select>
 
 <div id="table-description">
-    <p><strong>The CSV must have the following columns (order of the columns doesn't matter):</strong></p>
+    <p><strong>The CSV you upload must have the following columns (the order of the columns doesn't matter):</strong></p>
     <ol id="column-list"></ol>
 </div>
 
 <label>Upload a CSV</label>
+<p class="help-inline">The first row of the CSV is assumed to be the column headings</p>
 {% if errors.file %}<p class="error-inline">{{ errors.file }}</p>{% endif %}
 <input type="file" name="file" />
-<input type="submit" name="submit" value="Upload" id="submit" />
+
+<input type="submit" name="submit" value="Continue" id="submit" />
 
 </form>
 

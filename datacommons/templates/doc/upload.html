@@ -1,0 +1,15 @@
+{% extends "main.html" %}
+{% block content %}
+<h2>Upload a Document</h2>
+<form action="" method="post" enctype="multipart/form-data">
+{% csrf_token %}
+
+<label>Choose a file</label>
+{% if errors.file %}<p class="error-inline">{{ errors.file }}</p>{% endif %}
+<input type="file" name="file" />
+
+<input type="submit" name="submit" value="Continue" id="submit" />
+
+</form>
+
+{% endblock %}

@@ -30,9 +30,17 @@ p {
     margin-bottom:5px;
 }
 
+hr {
+    clear:both;
+}
+
 a:link, a:visited, a:hover {
     text-decoration:underline;
     color:#5195CE;
+}
+
+a:visited {
+    color:#1A5586;
 }
 
 a:hover {
@@ -55,15 +63,48 @@ label {
     font-weight:bold;
 }
 
-.error-inline {
+.errorlist {
+    color:#ff0000;
+    font-weight:bold;
+}
+
+.error-inline, .help-inline {
     margin:0;
-    color:#f00;
     font-weight:bold;
     font-size:11px;
 }
 
+.error-inline {
+    color:#f00;
+}
+
+.success {
+    color:#008209;
+    font-weight:bold;
+}
+
 #submit {
     display:block;
+    margin-top:10px;
+}
+
+#wrapper {
+    background-color:#fff;
+    width:800px;
+    margin:auto;
+    padding:20px;
+}
+
+#nav {
+    list-style-type:none;
+    margin-left:0;
+    padding-left:0;
+    padding-bottom:10px;
+}
+
+#nav li {
+    float:left;
+    margin-right:20px;
 }
 
 #table {
@@ -76,4 +117,38 @@ label {
 
 #table-description {
     display:none;
+}
+
+#preview-wrapper {
+    overflow:auto;
+    max-width:800px;
+}
+
+#preview {
+    border:none;
+    border-collapse:collapse;
+    margin-top:10px;
+    background-color:#fff;
+}
+
+#preview td {
+    border:none;
+    border-right:1px solid #efefef;
+    border-left:1px solid  #efefef;
+}
+
+#preview th {
+    border:none;
+    background-color:#efefef;
+    border-right:1px solid #efefef;
+    border-left:1px solid  #efefef;
+}
+
+#preview thead td {
+    vertical-align:bottom;
+}
+
+#preview tbody td {
+    font-family:Courier, "Courier New", monospace;
+    font-size:11px;
 }

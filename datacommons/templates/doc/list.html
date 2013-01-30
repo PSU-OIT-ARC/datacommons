@@ -1,0 +1,25 @@
+{% extends "main.html" %}
+{% load url from future %}
+{% block content %}
+{% if doc %}
+    <p class="success">You successfully uploaded {{ doc.name }}!</p>
+{% endif %}
+<table id="preview">
+    <thead>
+        <tr>
+            <th>User</th>
+            <th>File</th>
+            <th>Uploaded On</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for doc in docs %}
+            <tr>
+                <td>{{ doc.user.username }}</td>
+                <td><a href="{{ MEDIA_URL }}{{ doc.filename }}">{{ doc.name }}</a></td>
+                <td>{{ doc.created_on }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

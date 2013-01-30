@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block body %}
+{% extends "main.html" %}
+{% block content %}
 {% load dictlookup %}
 
 <form action="" method="post">
@@ -14,7 +14,9 @@
 {% else %}
     <h2>Append to "{{ upload.table }}"</h2>
 {% endif %}
-<table>
+
+<div id="preview-wrapper">
+<table id="preview">
     <thead>
         <tr>
             {% if upload.mode == upload.CREATE %}
@@ -69,6 +71,9 @@
                 {% endfor %}
             {% endif %}
         </tr>
+        <tr>
+            <th colspan="{{ column_names|length }}">Data Preview</th>
+        </tr>
     </thead>
     <tbody>
         {% for row in data %}
@@ -80,8 +85,9 @@
         {% endfor %}
     </tbody>
 </table>
+</div>
 <input type="hidden" name="upload_id" value="{{ upload.pk }}" />
-<input type="submit" name="submit" value="Insert" />
+<input type="submit" name="submit" value="Insert" id="submit" />
 </form>
 
 <script type="text/javascript">

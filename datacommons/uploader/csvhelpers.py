@@ -7,6 +7,12 @@ from django.db import connection, transaction, DatabaseError
 from .models import ColumnTypes
 from .dbhelpers import sanitize
 
+ALLOWED_CONTENT_TYPES = [
+    'text/csv', 
+    'application/vnd.ms-excel', 
+    'text/comma-separated-values',
+]
+
 def parseCSV(filename):
     """Parse a CSV and return the header row, the data rows, inferred data
     types, and the names of the inferred data types"""
@@ -30,9 +36,8 @@ def parseCSV(filename):
 
 def handleUploadedCSV(f):
     """Write a CSV to the media directory"""
-    allowed_content_types = ['text/csv', 'application/vnd.ms-excel']
-    if f.content_type not in allowed_content_types:
-        raise TypeError("Not a CSV!")
+    if f.content_type not in ALLOWED_CONTENT_TYPES:
+        raise TypeError("Not a CSV! It is '%s'" % (f.content_type))
 
     filename = uuid.uuid4()
     path = os.path.join(SETTINGS.MEDIA_ROOT, str(filename.hex) + ".csv")

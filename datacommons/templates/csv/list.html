@@ -1,0 +1,16 @@
+{% extends "main.html" %}
+{% load url from future %}
+{% block content %}
+<h2>Schemas</h2>
+<ol>
+{% for schema, tables in schemas.items %}
+    <li>{{ schema }}
+        <ol>
+        {% for table, columns in tables.items %}
+            <li><a href="{% url "csv-view" schema table %}">{{ table }}</a>
+        {% endfor %}
+        </ol>
+    </li>
+{% endfor %}
+</ol>
+{% endblock %}

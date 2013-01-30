@@ -1,8 +1,6 @@
-{% extends "base.html" %}
+{% extends "main.html" %}
 {% load url from future %}
-{% block body %}
-<h1>Datacommons</h1>
-
+{% block content %}
 <h2>Login</h2>
 <form method="post" action="{% url 'django.contrib.auth.views.login' %}">
     {% csrf_token %}
@@ -13,5 +11,5 @@
     <input type="hidden" name="next" value="" />
 </form>
 
-<p><a href="/register">Request an account</a></p>
+<p><a href="/accounts/reset">Forgot your credentials?</a> | <a href="/register">Request an account</a></p>
 {% endblock %}

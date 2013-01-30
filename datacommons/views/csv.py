@@ -7,6 +7,7 @@ from django.shortcuts import render, get_object_or_404
 from django.core.urlresolvers import reverse
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
+from django.core.exceptions import PermissionDenied
 from ..uploader.csvhelpers import (
     handleUploadedCSV, 
     insertCSVInto, 
@@ -21,6 +22,29 @@ from ..uploader.dbhelpers import (
     createTable, 
 )
 from ..uploader.models import ColumnTypes, CSVUpload
+
+@login_required
+def all(request):
+    schemas = getDatabaseMeta()
+    return render(request, "csv/list.html", {
+        "schemas": schemas,
+    })
+
+@login_required
+def view(request, schema, table):
+    rows, cols = fetchRowsFor(schema, table)
+    csv_id = request.session.get("csv_id", None)
+    upload = None
+    if csv_id:
+        upload = CSVUpload.objects.get(pk=csv_id)
+        del request.session['csv_id']
+    return render(request, "csv/view.html", {
+        "upload": upload,
+        "rows": rows,
+        "cols": cols,
+        "schema": schema,
+        "table": table,
+    })
 
 @login_required
 def upload(request):
@@ -72,6 +96,7 @@ def upload(request):
             r.schema = schema
             r.table = table
             r.mode = mode
+            r.user = request.user
             r.name = "Nothing"
             r.save()
 
@@ -88,6 +113,11 @@ def upload(request):
 @login_required
 def preview(request):
     upload = CSVUpload.objects.get(pk=request.REQUEST['upload_id'])
+    if upload.user.pk != request.user.pk:
+        raise PermissionDenied()
+    if upload.status == upload.DONE:
+        raise PermissionDenied()
+
     # fetch the meta data about the csv
     column_names, data, column_types, type_names = parseCSV(upload.filename)
     # grab the columns from the existing table
@@ -131,7 +161,10 @@ def preview(request):
                 errors['form'] = str(e)
 
             if e is None:
-                return HttpResponseRedirect(reverse('csv-review') + "?upload_id=" + str(upload.pk))
+                upload.status = upload.DONE
+                upload.save()
+                request.session['csv_id'] = upload.pk
+                return HttpResponseRedirect(reverse('csv-view', args=(upload.schema, upload.table)))
 
     elif request.POST and upload.mode == upload.APPEND: 
         # branch for appending to a table
@@ -163,7 +196,10 @@ def preview(request):
                     commit=True, 
                     column_name_to_column_index=column_name_to_column_index
                 )
-                return HttpResponseRedirect(reverse('csv-review') + "?upload_id=" + str(upload.pk))
+                upload.status = upload.DONE
+                upload.save()
+                request.session['csv_id'] = upload.pk
+                return HttpResponseRedirect(reverse('csv-view', args=(upload.schema, upload.table)))
 
     available_types = ColumnTypes.DESCRIPTION
 

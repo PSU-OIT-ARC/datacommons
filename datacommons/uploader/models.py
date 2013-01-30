@@ -52,8 +52,13 @@ class ColumnTypes:
 
 # Create your models here.
 class CSVUpload(models.Model):
+    # mode
     CREATE = 1
     APPEND = 2
+
+    # status
+    DONE = 4
+    PENDING = 8
 
     upload_id = models.AutoField(primary_key=True)
     created_on = models.DateTimeField(auto_now_add=True)
@@ -61,14 +66,29 @@ class CSVUpload(models.Model):
     schema = models.CharField(max_length=255)
     table = models.CharField(max_length=255, null=True)
     name = models.CharField(max_length=255, default="")
-    status = models.IntegerField(default=0)
+    status = models.IntegerField(default=PENDING)
     mode = models.IntegerField(choices=((APPEND, "Append"), (CREATE, "Create")))
 
     user = models.ForeignKey(User, related_name='+', null=True, default=None)
 
     class Meta:
-        db_table = 'upload'
+        db_table = 'csv'
         #ordering = ['created_on']
 
     def __unicode__(self):
-        return u'%s.%s' % (self.schema, self.name)
+        return u'%s.%s' % (self.schema, self.table)
+
+class DocUpload(models.Model):
+    upload_id = models.AutoField(primary_key=True)
+    created_on = models.DateTimeField(auto_now_add=True)
+    name = models.CharField(max_length=255, default="")
+    filename = models.CharField(max_length=255)
+
+    user = models.ForeignKey(User, related_name='+', null=True, default=None)
+
+    class Meta:
+        db_table = 'document'
+        #ordering = ['created_on']
+
+    def __unicode__(self):
+        return u'%s' % (self.name)
