@@ -22,7 +22,7 @@
             {% if upload.mode == upload.CREATE %}
                 <th colspan="{{ column_names|length }}">Give each column a name:</th>
             {% else %}
-                <th colspan="{{ column_names|length }}">For each column, select which field in the table corresponds to the data in the column. If you would like the column to be ignored, during the import, select "IGNORE"</th>
+                <th colspan="{{ column_names|length }}">For each column, select which field in the table corresponds to the data in the column.</th>
             {% endif %}
         </tr>
         <tr>
@@ -38,7 +38,6 @@
                     <td>
                         {% if forloop.counter0 in errors.column_names %}<p class="error-inline">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
                         <select name="column_names" class="column-name" id="typename-{{ forloop.counter0 }}">
-                            <option value="" >IGNORE</option>
                         {% for c in existing_columns %}
                             <option value="{{ c.name }}" {% if csv_name == c.name %}selected="selected"{% endif %}>{{ c.name }}</option>
                         {% endfor %}

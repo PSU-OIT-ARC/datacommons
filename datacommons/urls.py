@@ -31,7 +31,7 @@ urlpatterns = patterns('',
     url(r'^accounts/logout/?$', 'django.contrib.auth.views.logout', {"next_page": "/"}),
 
     # reset password
-    url(r'^accounts/reset/?$', 'django.contrib.auth.views.password_reset'),
+    url(r'^accounts/reset/?$', 'django.contrib.auth.views.password_reset', {"from_email": "django@pdx.edu"}),
     url(r'^accounts/reset/done/?$', 'django.contrib.auth.views.password_reset_done'),
     url(r'^accounts/reset/confirm/(?P<uidb36>[0-9A-Za-z]+)-(?P<token>.+)', 'django.contrib.auth.views.password_reset_confirm'),
     url(r'^accounts/reset/complete/?$', 'django.contrib.auth.views.password_reset_complete'),
