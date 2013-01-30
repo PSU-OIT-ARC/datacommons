@@ -3,7 +3,7 @@ import csv
 import uuid
 import os
 from django.conf import settings as SETTINGS
-from django.db import connection, transaction
+from django.db import connection, transaction, DatabaseError
 from .models import ColumnTypes
 from .dbhelpers import sanitize
 
@@ -60,16 +60,22 @@ def insertCSVInto(filename, schema_name, table_name, column_names, commit=False,
     # execute the query string for every row
     with open(path, 'rb') as csvfile:
         reader = csv.reader(csvfile)
-        for i, row in enumerate(reader):
-            if i == 0: continue # skip header row
+        for row_i, row in enumerate(reader):
+            if row_i == 0: continue # skip header row
             # convert empty strings to null
-            for i, col in enumerate(row):
-                row[i] = col if col != "" else None
+            for col_i, col in enumerate(row):
+                row[col_i] = col if col != "" else None
 
             if column_name_to_column_index is not None:
                 # remap the columns
                 row = [row[column_name_to_column_index[k]] for k in column_names]
-            cursor.execute(sql, row)
+            try:
+                cursor.execute(sql, row)
+            except DatabaseError as e:
+                # give a very detailed error message
+                # row_i is zero based, while the CSV is 1 based, hence the +1
+                raise DatabaseError("Tried to insert line %s of the CSV, got this from database: %s. SQL was: %s" % 
+                (row_i + 1, str(e), connection.queries[-1]['sql'])) 
 
     if commit:
         transaction.commit_unless_managed()

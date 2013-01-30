@@ -42,6 +42,12 @@ a:hover {
 label {
     display:block;
     font-weight:bold;
+    margin-top:10px;
+}
+
+.sublabel {
+    margin-top:0;
+    font-weight:normal;
 }
 
 .error {
@@ -49,3 +55,25 @@ label {
     font-weight:bold;
 }
 
+.error-inline {
+    margin:0;
+    color:#f00;
+    font-weight:bold;
+    font-size:11px;
+}
+
+#submit {
+    display:block;
+}
+
+#table {
+    display:inline;
+}
+
+#append-to-existing {
+    display:inline;
+}
+
+#table-description {
+    display:none;
+}

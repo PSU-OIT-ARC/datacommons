@@ -8,36 +8,48 @@
     <p class="error">{{ errors.form }}</p>
 {% endif %}
 {% if upload.mode == upload.CREATE %}
-    <label>Table</label>
-    {% if errors.table %}<p class="error">{{ errors.table }}</p>{% endif %}
+    <label>Give this table a name:</label>
+    {% if errors.table %}<p class="error-inline">{{ errors.table }}</p>{% endif %}
     <input type="text" name="table" value="{{ request.POST.table }}" />
 {% else %}
-    <h2>Append to {{ upload.table }}</h2>
+    <h2>Append to "{{ upload.table }}"</h2>
 {% endif %}
 <table>
     <thead>
         <tr>
             {% if upload.mode == upload.CREATE %}
+                <th colspan="{{ column_names|length }}">Give each column a name:</th>
+            {% else %}
+                <th colspan="{{ column_names|length }}">For each column, select which field in the table corresponds to the data in the column. If you would like the column to be ignored, during the import, select "IGNORE"</th>
+            {% endif %}
+        </tr>
+        <tr>
+            {% if upload.mode == upload.CREATE %}
                 {% for name in column_names %}
                     <td>
-                        {% if forloop.counter0 in errors.column_names %}<p class="error">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
+                        {% if forloop.counter0 in errors.column_names %}<p class="error-inline">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
                         <input type="text" name="column_names" value="{{ name }}" />
                     </td>
                 {% endfor %}
             {% else %}
                 {% for csv_name in column_names %}
                     <td>
-                        {% if forloop.counter0 in errors.column_names %}<p class="error">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
+                        {% if forloop.counter0 in errors.column_names %}<p class="error-inline">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
                         <select name="column_names" class="column-name" id="typename-{{ forloop.counter0 }}">
+                            <option value="" >IGNORE</option>
                         {% for c in existing_columns %}
                             <option value="{{ c.name }}" {% if csv_name == c.name %}selected="selected"{% endif %}>{{ c.name }}</option>
                         {% endfor %}
-                        {% if column_names|length > existing_columns|length %}
-                            <option value="">Truncate</option>
-                        {% endif %}
                         </select>
                     </td>
                 {% endfor %}
+            {% endif %}
+        </tr>
+        <tr>
+            {% if upload.mode == upload.CREATE %}
+                <th colspan="{{ column_names|length }}">Choose a datatype for each column:</th>
+            {% else %}
+            
             {% endif %}
         </tr>
         <tr>

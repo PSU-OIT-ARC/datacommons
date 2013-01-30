@@ -2,6 +2,7 @@ import uuid
 import os
 import re
 import csv
+from collections import defaultdict
 from django.conf import settings as SETTINGS
 from django.db import connection, transaction
 from .models import ColumnTypes
@@ -14,6 +15,48 @@ def sanitize(value):
     """Strip out bad characters from value"""
     return re.sub(r'[^A-Za-z_0-9]', '', value)
 
+def getDatabaseMeta():
+    sql = """
+        SELECT 
+            schema_name, 
+            tables.table_name,
+            column_name,
+            data_type
+        FROM 
+            information_schema.schemata 
+        LEFT JOIN 
+            information_schema.tables 
+        ON 
+            table_schema = schema_name 
+        LEFT JOIN
+            information_schema.columns
+        ON
+            tables.table_name = columns.table_name
+            AND
+            tables.table_schema = columns.table_schema
+            AND column_name != 'id'
+        WHERE
+            schema_name NOT LIKE 'pg_%%' AND 
+            schema_name != 'information_schema';
+    """
+    cursor = connection.cursor()
+    cursor.execute(sql)
+    meta = {}
+    for row in cursor.fetchall():
+        schema, table, column, data_type = row
+        if schema not in meta:
+            meta[schema] = {}
+
+        if table:
+            if table not in meta[schema]:
+                meta[schema][table] = []
+            type_id = ColumnTypes.pgColumnTypeNameToType(data_type)
+            meta[schema][table].append({
+                "name": column, 
+                "type": type_id,
+                "type_label": ColumnTypes.toString(type_id),
+            })
+    return meta
 
 def getSchemas():
     """Return a list of schemas in the database"""
