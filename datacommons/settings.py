@@ -5,7 +5,7 @@ PROJECT_DIR = os.path.dirname(__file__)
 HOME_DIR = os.path.normpath(os.path.join(PROJECT_DIR, '../'))
 # Django settings for datacommons project.
 
-DATETIME_FORMAT = "Y-m-d H:i:sO"
+DATETIME_FORMAT = "Y-m-d H:i:s"
 
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name

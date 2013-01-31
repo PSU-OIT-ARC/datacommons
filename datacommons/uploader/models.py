@@ -48,7 +48,8 @@ class ColumnTypes:
     @classmethod 
     def pgColumnTypeNameToType(cls, type_code):
         # invert the PG_TYPE_NAME dict
-        return dict(zip(cls.PG_TYPE_NAME.values(), cls.PG_TYPE_NAME.keys()))[type_code]
+        return cls.PG_TYPE_CODE_TO_COLUMN_TYPE[type_code]
+        #return dict(zip(cls.PG_TYPE_NAME.values(), cls.PG_TYPE_NAME.keys()))[type_code]
 
 # Create your models here.
 class CSVUpload(models.Model):

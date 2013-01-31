@@ -11,6 +11,11 @@
             <th>{{ col.name }}</th>
         {% endfor %}
         </tr>
+        <tr>
+        {% for col in cols %}
+            <th class="field-type">{{ col.type_label }}</th>
+        {% endfor %}
+        </tr>
     </thead>
     {% for row in rows %}
         <tr>

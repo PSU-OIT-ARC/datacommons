@@ -38,6 +38,14 @@ def view(request, schema, table):
     if csv_id:
         upload = CSVUpload.objects.get(pk=csv_id)
         del request.session['csv_id']
+
+    # create a list of column names, and human readable type labels
+    cols = [
+    {
+        "name": t.name, 
+        "type_label": ColumnTypes.toString(ColumnTypes.pgColumnTypeNameToType(t.type_code))
+    } for t in cols]
+
     return render(request, "csv/view.html", {
         "upload": upload,
         "rows": rows,

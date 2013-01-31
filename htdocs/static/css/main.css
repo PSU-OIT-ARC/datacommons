@@ -78,6 +78,10 @@ label {
     color:#f00;
 }
 
+.field-type {
+    font-size:11px;
+}
+
 .success {
     color:#008209;
     font-weight:bold;
