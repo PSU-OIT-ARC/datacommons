@@ -80,6 +80,7 @@ label {
 
 .field-type {
     font-size:11px;
+    text-align:center;
 }
 
 .success {
@@ -94,7 +95,6 @@ label {
 
 #wrapper {
     background-color:#fff;
-    width:800px;
     margin:auto;
     padding:20px;
 }
@@ -124,8 +124,6 @@ label {
 }
 
 #preview-wrapper {
-    overflow:auto;
-    max-width:800px;
 }
 
 #preview {
@@ -150,6 +148,7 @@ label {
 
 #preview thead td {
     vertical-align:bottom;
+    text-align:center;
 }
 
 #preview tbody td {
