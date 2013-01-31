@@ -16,7 +16,7 @@
 {% if errors.mode %}<p class="error-inline">{{ errors.mode }}</p>{% endif %}
 {% if errors.table %}<p class="error-inline">{{ errors.table }}</p>{% endif %}
 {% comment %}using slugify to convert the mode to a string. Hackish {% endcomment %}
-<label class="sublabel"><input type="radio" name="mode" value="{{ CSVUpload.CREATE }}" {% if request.POST.mode == CSVUpload.CREATE|slugify %}checked="checked"{% endif %} />create a new table</label>
+<label class="sublabel" id="create-table"><input type="radio" name="mode" value="{{ CSVUpload.CREATE }}" {% if request.POST.mode == CSVUpload.CREATE|slugify %}checked="checked"{% endif %} />create a new table</label>
 <label class="sublabel" id="append-to-existing"><input type="radio" name="mode" value="{{ CSVUpload.APPEND }}" {% if request.POST.mode == CSVUpload.APPEND|slugify %}checked="checked"{% endif %} />append to an existing table
 </label>
 <select name="table" id="table">
@@ -42,6 +42,16 @@ $(document).ready(function(){
     $('#schema').on('change', function(){
         populateTables();
     });
+
+    $('#create-table').bind('click change', function(){
+        $('#table-description').hide();
+    })
+    
+    $('#append-to-existing input').bind('click change', function(){
+        if($(this).attr('checked')){
+            $("#table").click();
+        }
+    })
 
     $('#table').on('click change', function(){
         $('#append-to-existing input').attr('checked', true);

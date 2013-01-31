@@ -72,13 +72,14 @@ def insertCSVInto(filename, schema_name, table_name, column_names, commit=False,
                 row[col_i] = col if col != "" else None
 
             if column_name_to_column_index is not None:
-                # remap the columns
+                # remap the columns since the order of the columns in the CSV does not match
+                # the order of the columns in the db table
                 row = [row[column_name_to_column_index[k]] for k in column_names]
             try:
                 cursor.execute(sql, row)
             except DatabaseError as e:
                 # give a very detailed error message
-                # row_i is zero based, while the CSV is 1 based, hence the +1
+                # row_i is zero based, while the CSV is 1 based, hence the +1 on row_i
                 raise DatabaseError("Tried to insert line %s of the CSV, got this from database: %s. SQL was: %s" % 
                 (row_i + 1, str(e), connection.queries[-1]['sql'])) 
 

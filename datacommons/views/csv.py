@@ -16,7 +16,6 @@ from ..uploader.csvhelpers import (
 from ..uploader.dbhelpers import (
     isSaneName,
     fetchRowsFor,
-    getTablesForAllSchemas,
     getDatabaseMeta,
     getColumnsForTable,
     createTable, 
@@ -25,6 +24,7 @@ from ..uploader.models import ColumnTypes, CSVUpload
 
 @login_required
 def all(request):
+    """Display a nested list of all the schemas and tables in the database"""
     schemas = getDatabaseMeta()
     return render(request, "csv/list.html", {
         "schemas": schemas,
@@ -32,18 +32,25 @@ def all(request):
 
 @login_required
 def view(request, schema, table):
+    """View the table in schema, including the column names and types"""
+    # get all the data
     rows, cols = fetchRowsFor(schema, table)
+
+    # was this CSV *just* modified/created by the user?
+    # if so, we will display a message on the template saying the change was successful
     csv_id = request.session.get("csv_id", None)
     upload = None
     if csv_id:
         upload = CSVUpload.objects.get(pk=csv_id)
+        # delete the session so the success message doesn't appear again
         del request.session['csv_id']
 
     # create a list of column names, and human readable type labels
+    # to display on the table header
     cols = [
     {
         "name": t.name, 
-        "type_label": ColumnTypes.toString(ColumnTypes.pgColumnTypeNameToType(t.type_code))
+        "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code))
     } for t in cols]
 
     return render(request, "csv/view.html", {
@@ -56,6 +63,7 @@ def view(request, schema, table):
 
 @login_required
 def upload(request):
+    """Display the CSV upload form"""
     schemas = getDatabaseMeta()
     errors = {}
     if request.POST:
@@ -71,6 +79,7 @@ def upload(request):
         if mode == CSVUpload.CREATE:
             table = None
         elif mode == CSVUpload.APPEND:
+            # does the table exist in that schema?
             if table not in schemas.get(schema, []):
                 errors['table'] = "Please choose a table"
         else:
@@ -120,7 +129,9 @@ def upload(request):
 
 @login_required
 def preview(request):
+    """Finalize the CSV upload"""
     upload = CSVUpload.objects.get(pk=request.REQUEST['upload_id'])
+    # authorized to view this upload?
     if upload.user.pk != request.user.pk:
         raise PermissionDenied()
     if upload.status == upload.DONE:
@@ -133,6 +144,7 @@ def preview(request):
         existing_columns = getColumnsForTable(upload.schema, upload.table)
     else:
         existing_columns = None
+
     errors = {}
     
     if request.POST and upload.mode == upload.CREATE: 
@@ -168,31 +180,23 @@ def preview(request):
             except DatabaseError as e:
                 errors['form'] = str(e)
 
-            if e is None:
-                upload.status = upload.DONE
-                upload.save()
-                request.session['csv_id'] = upload.pk
-                return HttpResponseRedirect(reverse('csv-view', args=(upload.schema, upload.table)))
-
     elif request.POST and upload.mode == upload.APPEND: 
         # branch for appending to a table
         column_names = request.POST.getlist("column_names")
-        defined_columns = []
+        # create a map of the DB table's column names, to the position of the column
+        # in the CSV
         column_name_to_column_index = {}
         # valid column names?
         for i, name in enumerate(column_names):
-            if name == "": continue # truncate the column
-
             if not isSaneName(name):
                 errors.setdefault('column_names', {})[i] = "Invalid name"
             else:
-                defined_columns.append(name);
                 column_name_to_column_index[name] = i
 
         if len(errors) == 0:
             # make sure all the columns are defined for the existing table
             existing = [c['name'] for c in existing_columns]
-            if set(defined_columns) != set(existing):
+            if set(column_names) != set(existing):
                 errors['form'] = "Not all columns defined"
 
             if len(errors) == 0:
@@ -204,12 +208,17 @@ def preview(request):
                     commit=True, 
                     column_name_to_column_index=column_name_to_column_index
                 )
-                upload.status = upload.DONE
-                upload.save()
-                request.session['csv_id'] = upload.pk
-                return HttpResponseRedirect(reverse('csv-view', args=(upload.schema, upload.table)))
 
-    available_types = ColumnTypes.DESCRIPTION
+        # the upload was successful 
+        if request.POST and len(errors) == 0:
+            upload.status = upload.DONE
+            upload.save()
+            # use a session var to indicate on the next page that the
+            # upload was successful
+            request.session['csv_id'] = upload.pk
+            return HttpResponseRedirect(reverse('csv-view', args=(upload.schema, upload.table)))
+
+    available_types = ColumnTypes.TO_HUMAN
 
     return render(request, "csv/preview.html", {
         'column_names': column_names,
@@ -220,18 +229,5 @@ def preview(request):
         'errors': errors,
         'existing_columns': existing_columns,
         'existing_columns_json': json.dumps(existing_columns),
-        'pretty_type_name': json.dumps(ColumnTypes.DESCRIPTION),
+        'pretty_type_name': json.dumps(available_types),
     })
-
-@login_required
-def review(request):
-    # need authorization
-    upload = CSVUpload.objects.get(pk=request.REQUEST['upload_id'])
-    rows, cols = fetchRowsFor(upload.schema, upload.table)
-    return render(request, "csv/review.html", {
-        "upload": upload,
-        "rows": rows,
-        "cols": cols,
-    })
-
-

@@ -2,13 +2,15 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class ColumnTypes:
+    """An enum for column types"""
     INTEGER = 1
     NUMERIC = 2
     TIMESTAMP = 4
     TIMESTAMP_WITH_ZONE = 8
     CHAR = 16
 
-    DESCRIPTION = {
+    # map the enum to human readable form
+    TO_HUMAN = {
         INTEGER: "Integer", 
         NUMERIC: "Decimal",
         TIMESTAMP: "Timestamp",
@@ -16,7 +18,8 @@ class ColumnTypes:
         CHAR: "Text",
     }
 
-    PG_TYPE_NAME = {
+    # map to a PG datatype
+    TO_PG_TYPE = {
         INTEGER: "integer", 
         NUMERIC: "numeric",
         TIMESTAMP: "timestamp without time zone",
@@ -24,32 +27,40 @@ class ColumnTypes:
         CHAR: "text",
     }
 
-    # maps a cursor type code to one of the ColumnTypes
-    PG_TYPE_CODE_TO_COLUMN_TYPE = {
+    # maps a *cursor* type code to the enum value
+    # you can get these numbers from the cursor.description
+    FROM_PG_CURSOR_TYPE_CODE = {
         23: INTEGER,
         1700: NUMERIC,
-        1184: TIMESTAMP,
-        1114: TIMESTAMP_WITH_ZONE,
+        1114: TIMESTAMP,
+        1184: TIMESTAMP_WITH_ZONE,
         25: CHAR,
     }
 
     @classmethod
     def toString(cls, enum):
-        return cls.DESCRIPTION[enum]
+        """Convert type number to a human readable form"""
+        return cls.TO_HUMAN[enum]
 
     @classmethod
     def toPGType(cls, enum):
-        return cls.PG_TYPE_NAME[enum]
+        """Convert a type number to a PG data type string"""
+        return cls.TO_PG_TYPE[enum]
 
     @classmethod
     def isValidType(cls, enum):
-        return enum in cls.DESCRIPTION
+        return enum in cls.TO_HUMAN
 
     @classmethod 
-    def pgColumnTypeNameToType(cls, type_code):
+    def fromPGCursorTypeCode(cls, type_code):
+        """Convert a cursor.description type_code to a type number"""
+        return cls.FROM_PG_CURSOR_TYPE_CODE[type_code]
+
+    @classmethod 
+    def fromPGTypeName(cls, type_code):
+        """Convert a PG column type like "timestamp" to a type number"""
         # invert the PG_TYPE_NAME dict
-        return cls.PG_TYPE_CODE_TO_COLUMN_TYPE[type_code]
-        #return dict(zip(cls.PG_TYPE_NAME.values(), cls.PG_TYPE_NAME.keys()))[type_code]
+        return dict(zip(cls.TO_PG_TYPE.values(), cls.TO_PG_TYPE.keys()))[type_code]
 
 # Create your models here.
 class CSVUpload(models.Model):
