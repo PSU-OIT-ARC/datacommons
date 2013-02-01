@@ -21,6 +21,7 @@ from ..uploader.dbhelpers import (
     createTable, 
 )
 from ..uploader.models import ColumnTypes, CSVUpload
+from ..uploader.forms import CSVUploadForm
 
 @login_required
 def all(request):
@@ -67,57 +68,24 @@ def upload(request):
     schemas = getDatabaseMeta()
     errors = {}
     if request.POST:
-        # check for errors
-        # valid schema?
-        schema = request.POST.get('schema', None)
-        if schema not in schemas:
-            errors['schema'] = "Please choose a schema"
-
-        # valid table (if the mode is append)?
-        table = request.POST.get('table', None)
-        mode = int(request.POST.get('mode', 0))
-        if mode == CSVUpload.CREATE:
-            table = None
-        elif mode == CSVUpload.APPEND:
-            # does the table exist in that schema?
-            if table not in schemas.get(schema, []):
-                errors['table'] = "Please choose a table"
-        else:
-            errors['mode'] = "Please choose a mode"
-
-        # is there a file?
-        file = request.FILES.get('file', None)
-        if not file:
-            errors['file'] = "Please choose a CSV to upload"
-
-        # everything checked out, so can we upload?
-        if len(errors) == 0:
-            try:
-                path = handleUploadedCSV(file)
-            except TypeError as e:
-                errors['file'] = str(e)
-
-        if len(errors) == 0:
-            # are there enough columns?
-            if mode == CSVUpload.APPEND:
-                existing_columns = getColumnsForTable(schema, table)
-                header, data, types, type_names = parseCSV(os.path.basename(path))
-                if len(existing_columns) != len(header):
-                    errors['file'] = "The number of columns in the CSV you selected does not match the number of columns in the table you selected"
-                    
-        if len(errors) == 0:
-            # upload was successful so save state, and move to the preview
-            filename = os.path.basename(path)
+        form = CSVUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            # move to the preview
+            filename = os.path.basename(form.path)
             r = CSVUpload()
             r.filename = filename
-            r.schema = schema
-            r.table = table
-            r.mode = mode
+            r.schema = form.cleaned_data['schema']
+            r.table = form.cleaned_data['table']
+            r.mode = form.cleaned_data['mode']
             r.user = request.user
             r.name = "Nothing"
             r.save()
-
             return HttpResponseRedirect(reverse("csv-preview") + "?upload_id=" + str(r.pk))
+        else:
+            form.es = form._errors
+
+    else:
+        form = CSVUploadForm()
 
     schemas_json = json.dumps(schemas)
     return render(request, 'csv/upload.html', {
@@ -125,6 +93,7 @@ def upload(request):
         "schemas_json": schemas_json,
         "errors": errors,
         "CSVUpload": CSVUpload,
+        "form": form,
     })
 
 @login_required

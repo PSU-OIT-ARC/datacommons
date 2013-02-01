@@ -1,26 +1,29 @@
 {% extends "main.html" %}
 {% block content %}
 <h2>Import a CSV</h2>
+
+{% for error in form.es %}
+    {{ error|pprint }}
+{% endfor %}
 <form action="" method="post" enctype="multipart/form-data">
 {% csrf_token %}
 <label>Which schema should this CSV be imported into?</label>
-{% if errors.schema %}<p class="error-inline">{{ errors.schema }}</p>{% endif %}
-<select name="schema" id="schema">
-    <option value=""></option>
-    {% for schema in schemas %}
-        <option value="{{ schema }}" {% if request.POST.schema == schema %}selected="selected"{% endif %}>{{ schema }}</option>
-    {% endfor %}
-</select>
+{% if form.schema.errors %}
+    <p class="error-inline">{% for e in form.schema.errors %} {{ e }} {% endfor %}</p>
+{% endif %}
+{{ form.schema }}
 
 <label>Do you want to:</label>
-{% if errors.mode %}<p class="error-inline">{{ errors.mode }}</p>{% endif %}
-{% if errors.table %}<p class="error-inline">{{ errors.table }}</p>{% endif %}
-{% comment %}using slugify to convert the mode to a string. Hackish {% endcomment %}
-<label class="sublabel" id="create-table"><input type="radio" name="mode" value="{{ CSVUpload.CREATE }}" {% if request.POST.mode == CSVUpload.CREATE|slugify %}checked="checked"{% endif %} />create a new table</label>
-<label class="sublabel" id="append-to-existing"><input type="radio" name="mode" value="{{ CSVUpload.APPEND }}" {% if request.POST.mode == CSVUpload.APPEND|slugify %}checked="checked"{% endif %} />append to an existing table
-</label>
-<select name="table" id="table">
-</select>
+{% if form.mode.errors %}
+    <p class="error-inline">{% for e in form.mode.errors %} {{ e }} {% endfor %}</p>
+{% endif %}
+{% for choice in form.mode %}
+<label class="sublabel">{{ choice.tag }} {{ choice.choice_label }}</label>
+{% endfor %}
+{% if form.table.errors %}
+    <p class="error-inline">{% for e in form.table.errors %} {{ e }} {% endfor %}</p>
+{% endif %}
+{{ form.table }}
 
 <div id="table-description">
     <p><strong>The CSV you upload must have the following columns (the order of the columns doesn't matter):</strong></p>
@@ -29,8 +32,10 @@
 
 <label>Upload a CSV</label>
 <p class="help-inline">The first row of the CSV is assumed to be the column headings</p>
-{% if errors.file %}<p class="error-inline">{{ errors.file }}</p>{% endif %}
-<input type="file" name="file" />
+{% if form.file.errors %}
+    <p class="error-inline">{% for e in form.file.errors %} {{ e }} {% endfor %}</p>
+{% endif %}
+{{ form.file }}
 
 <input type="submit" name="submit" value="Continue" id="submit" />
 
@@ -39,57 +44,65 @@
 <script type="text/javascript">
 var SCHEMAS = {{ schemas_json|safe }};
 $(document).ready(function(){
-    $('#schema').on('change', function(){
+    $('#id_schema').on('change', function(){
         populateTables();
     });
 
-    $('#create-table').bind('click change', function(){
+    $('input[name="mode"]:first').bind('click change', function(){
         $('#table-description').hide();
+        populateTables();
     })
     
-    $('#append-to-existing input').bind('click change', function(){
-        if($(this).attr('checked')){
-            $("#table").click();
-        }
+    $('input[name="mode"]:last').bind('click change', function(){
+        showColumns();
     })
 
-    $('#table').on('click change', function(){
-        $('#append-to-existing input').attr('checked', true);
-        var table = $(this).val();
-        var schema = $('#schema').val();
-        if(schema in SCHEMAS && table in SCHEMAS[schema]){
-            var description = [];
-            var cols = SCHEMAS[schema][table];
-            var info = []
-            for(var i = 0; i < cols.length; i++){
-                col = cols[i];
-                info.push("<li>" + col.name + " (<em>" + col.type_label.toLowerCase() + "</em>)</li>");
-            }
-            $('#column-list').html(info.join("\n"))
-            $('#table-description').show();
-        } else {
-            $('#table-description').hide();
-        }
+    $('#id_table').on('click change', function(){
+        $('input[name=mode]:last').attr('checked', true);
+        showColumns();
     });
-    populateTables();
 
-    {% if request.POST.table %}
-    // preselect the right table for the user
-        $('#table [value={{ request.POST.table }}]').attr("selected", "selected");
-        $('#table').click();
-    {% endif %}
+    populateTables();
+    if($('input[name="mode"]:last').attr('checked')){
+        showColumns();
+    }
+
 });
 
 function populateTables(){
-    var schema = $('#schema').val();
+    var schema = $('#id_schema').val();
     var tables = SCHEMAS[schema];
-    var t = $('#table');
-    $('#table').html("")
+    var table = $('#id_table').val();
+    var t = $('#id_table');
+    $('#id_table').html("")
     if(schema == "") return;
     t.append("<option value=''></option>")
     for(var k in tables){
         var name = k;
-        t.append("<option value='" + name + "'>" + name + "</option>");
+        var el = t.append("<option value='" + name + "'>" + name + "</option>");
+    }
+    $('#id_table option').each(function(){
+        if($(this).text() == table){
+            console.log(table);
+            $(this).attr('selected', true);
+        }
+    });
+}
+
+function showColumns(){
+    var table = $("#id_table").val();
+    var schema = $('#id_schema').val();
+
+    if(schema in SCHEMAS && table in SCHEMAS[schema]){
+        var description = [];
+        var cols = SCHEMAS[schema][table];
+        var info = []
+        for(var i = 0; i < cols.length; i++){
+            col = cols[i];
+            info.push("<li>" + col.name + " (<em>" + col.type_label.toLowerCase() + "</em>)</li>");
+        }
+        $('#column-list').html(info.join("\n"))
+        $('#table-description').show();
     }
 }
 
