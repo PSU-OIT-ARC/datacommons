@@ -4,74 +4,66 @@
 
 <form action="" method="post">
 {% csrf_token %}
-{% if errors.form %}
-    <p class="error">{{ errors.form }}</p>
+{% if error %}
+    <p class="error">{{ error }}</p>
 {% endif %}
 {% if upload.mode == upload.CREATE %}
     <label>Give this table a name:</label>
-    {% if errors.table %}<p class="error-inline">{{ errors.table }}</p>{% endif %}
-    <input type="text" name="table" value="{{ request.POST.table }}" />
+    {% if form.table.errors %}<p class="error-inline">{% for error in form.table.errors %}{{ error }}{% endfor %}</p>{% endif %}
+    {{ form.table }}
 {% else %}
     <h2>Append to "{{ upload.table }}"</h2>
 {% endif %}
-
+    {% if form.non_field_errors %}<p class="error-inline">{% for error in form.non_field_errors %}{{ error }}{% endfor %}</p>{% endif %}
 <div id="preview-wrapper">
 <table id="preview">
     <thead>
         <tr>
             {% if upload.mode == upload.CREATE %}
-                <th colspan="{{ column_names|length }}">Give each column a name:</th>
+                <th colspan="{{ form.nameFields|length }}">Give each column a name:</th>
             {% else %}
-                <th colspan="{{ column_names|length }}">For each column, select which field in the table corresponds to the data in the column.</th>
+                <th colspan="{{ form.nameFields|length }}">For each column, select which field in the table corresponds to the data in the column.</th>
             {% endif %}
         </tr>
         <tr>
             {% if upload.mode == upload.CREATE %}
-                {% for name in column_names %}
+                {% for field in form.nameFields %}
                     <td>
-                        {% if forloop.counter0 in errors.column_names %}<p class="error-inline">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
-                        <input type="text" name="column_names" value="{{ name }}" />
+                        {% if field.errors %}<p class="error-inline">{% for error in field.errors %} {{ error }}</p>{% endfor %}{% endif %}
+                        {{ field }}
                     </td>
                 {% endfor %}
             {% else %}
-                {% for csv_name in column_names %}
-                    <td>
-                        {% if forloop.counter0 in errors.column_names %}<p class="error-inline">{{ errors.column_names|get_item:forloop.counter0 }}</p>{% endif %}
-                        <select name="column_names" class="column-name" id="typename-{{ forloop.counter0 }}">
-                        {% for c in existing_columns %}
-                            <option value="{{ c.name }}" {% if csv_name == c.name %}selected="selected"{% endif %}>{{ c.name }}</option>
-                        {% endfor %}
-                        </select>
+                {% for field in form.nameFields %}
+                    <td class="select-type">
+                        {% if field.errors %}<p class="error-inline">{% for error in field.errors %} {{ error }}</p>{% endfor %}{% endif %}
+                        {{ field }}
                     </td>
                 {% endfor %}
             {% endif %}
         </tr>
         <tr>
             {% if upload.mode == upload.CREATE %}
-                <th colspan="{{ column_names|length }}">Choose a datatype for each column:</th>
+                <th colspan="{{ form.nameFields|length }}">Choose a datatype for each column:</th>
             {% else %}
             
             {% endif %}
         </tr>
         <tr>
             {% if upload.mode == upload.CREATE %}
-                {% for selected_type in column_types %}
+                {% for field in form.typeFields %}
                     <td>
-                        <select name="column_types">
-                            {% for type_id, name in available_types.items %}
-                                <option value="{{ type_id }}" {% if selected_type == type_id %}selected="selected"{% endif %}>{{ name }}</option>
-                            {% endfor %}
-                        </select>
+                        {{ field }}
                     </td>
                 {% endfor %}
             {% else %}
-                {% for name in column_names %}
+                {% for field in form.nameFields %}
                     <td class="field-type" id="typelabel-{{ forloop.counter0}}"></td>
                 {% endfor %}
             {% endif %}
         </tr>
         <tr>
-            <th colspan="{{ column_names|length }}">Data Preview</th>
+            <th colspan="{{ form.nameFields|length }}">Data Preview</th>
         </tr>
     </thead>
     <tbody>
@@ -85,6 +77,8 @@
     </tbody>
 </table>
 </div>
+
+
 <input type="hidden" name="upload_id" value="{{ upload.pk }}" />
 <input type="submit" name="submit" value="Insert" id="submit" />
 </form>
@@ -102,17 +96,16 @@
     COLUMN_NAME_TO_TYPE = map
 
     $(document).ready(function(){
-        $('.column-name').bind('click blur change', function(e){
+        $('.select-type select').bind('click blur change', function(e){
             var el = $(this);
             var id = el.attr('id').split("-")[1]
             var name = el.val();
             var type = COLUMN_NAME_TO_TYPE[name];
             var label = TYPE_TO_STRING[type];
-            console.log(label);
             $('#typelabel-' + id).text(label);
         });
 
-        $('.column-name').click()
+        $('.select-type select').click()
     });
 {% endif %}
 

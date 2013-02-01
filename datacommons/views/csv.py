@@ -21,7 +21,7 @@ from ..uploader.dbhelpers import (
     createTable, 
 )
 from ..uploader.models import ColumnTypes, CSVUpload
-from ..uploader.forms import CSVUploadForm
+from ..uploader.forms import CSVUploadForm, CSVPreviewForm
 
 @login_required
 def all(request):
@@ -70,7 +70,7 @@ def upload(request):
     if request.POST:
         form = CSVUploadForm(request.POST, request.FILES)
         if form.is_valid():
-            # move to the preview
+            # save state and move to the preview
             filename = os.path.basename(form.path)
             r = CSVUpload()
             r.filename = filename
@@ -106,6 +106,47 @@ def preview(request):
     if upload.status == upload.DONE:
         raise PermissionDenied()
 
+    error = None
+    
+    if request.POST:
+        form = CSVPreviewForm(request.POST, upload=upload)
+        if form.is_valid():
+            if upload.mode == upload.CREATE: 
+                upload.table = form.cleaned_data['table']
+                upload.save()
+
+                # build the table and insert all the data
+                column_names = form.cleanedColumnNames()
+                column_types = form.cleanedColumnTypes()
+                try:
+                    createTable(upload.schema, upload.table, column_names, column_types)
+                    insertCSVInto(upload.filename, upload.schema, upload.table, column_names, commit=True)
+                except DatabaseError as e:
+                    error = str(e)
+            elif upload.mode == upload.APPEND:
+                # insert all the data
+                try:
+                    insertCSVInto(
+                        upload.filename, 
+                        upload.schema, 
+                        upload.table, 
+                        form.cleanedColumnNames(), 
+                        commit=True, 
+                        column_name_to_column_index=form.mapColumnNameToColumnIndex(),
+                    )
+                except DatabaseError as e:
+                    error = str(e)
+
+            if error == None:
+                upload.status = upload.DONE
+                upload.save()
+                # use a session var to indicate on the next page that the
+                # upload was successful
+                request.session['csv_id'] = upload.pk
+                return HttpResponseRedirect(reverse('csv-view', args=(upload.schema, upload.table)))
+    else:
+        form = CSVPreviewForm(upload=upload)
+
     # fetch the meta data about the csv
     column_names, data, column_types, type_names = parseCSV(upload.filename)
     # grab the columns from the existing table
@@ -114,89 +155,14 @@ def preview(request):
     else:
         existing_columns = None
 
-    errors = {}
-    
-    if request.POST and upload.mode == upload.CREATE: 
-        # this branch is for creating a new table
-        # valid table name?
-        table = request.POST.get("table", None)
-        if not isSaneName(table):
-            errors['table'] = "Invalid name"
-
-        # valid column names?
-        column_names = request.POST.getlist("column_names")
-        for i, name in enumerate(column_names):
-            if not isSaneName(name):
-                errors.setdefault('column_names', {})[i] = "Invalid name"
-
-        # valid column types?
-        column_types = request.POST.getlist("column_types")
-        for column_index, column_type_id in enumerate(column_types):
-            # convert to an int
-            column_type_id = int(column_type_id)
-            column_types[column_index] = column_type_id
-            if not ColumnTypes.isValidType(column_type_id):
-                errors.setdefault('column_types', {})[column_index] = "Invalid column type"
-
-        if len(errors) == 0:
-            upload.table = table
-            upload.save()
-            e = None
-            # insert all the data
-            try:
-                createTable(upload.schema, upload.table, column_names, column_types)
-                insertCSVInto(upload.filename, upload.schema, upload.table, column_names, commit=True)
-            except DatabaseError as e:
-                errors['form'] = str(e)
-
-    elif request.POST and upload.mode == upload.APPEND: 
-        # branch for appending to a table
-        column_names = request.POST.getlist("column_names")
-        # create a map of the DB table's column names, to the position of the column
-        # in the CSV
-        column_name_to_column_index = {}
-        # valid column names?
-        for i, name in enumerate(column_names):
-            if not isSaneName(name):
-                errors.setdefault('column_names', {})[i] = "Invalid name"
-            else:
-                column_name_to_column_index[name] = i
-
-        if len(errors) == 0:
-            # make sure all the columns are defined for the existing table
-            existing = [c['name'] for c in existing_columns]
-            if set(column_names) != set(existing):
-                errors['form'] = "Not all columns defined"
-
-            if len(errors) == 0:
-                insertCSVInto(
-                    upload.filename, 
-                    upload.schema, 
-                    upload.table, 
-                    existing, 
-                    commit=True, 
-                    column_name_to_column_index=column_name_to_column_index
-                )
-
-        # the upload was successful 
-        if request.POST and len(errors) == 0:
-            upload.status = upload.DONE
-            upload.save()
-            # use a session var to indicate on the next page that the
-            # upload was successful
-            request.session['csv_id'] = upload.pk
-            return HttpResponseRedirect(reverse('csv-view', args=(upload.schema, upload.table)))
-
     available_types = ColumnTypes.TO_HUMAN
 
     return render(request, "csv/preview.html", {
-        'column_names': column_names,
         'data': data,
-        'column_types': column_types,
-        'available_types': available_types,
         'upload': upload,
-        'errors': errors,
+        'error': error,
         'existing_columns': existing_columns,
         'existing_columns_json': json.dumps(existing_columns),
         'pretty_type_name': json.dumps(available_types),
+        'form': form,
     })

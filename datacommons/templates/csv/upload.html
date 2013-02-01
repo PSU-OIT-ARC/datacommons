@@ -2,9 +2,6 @@
 {% block content %}
 <h2>Import a CSV</h2>
 
-{% for error in form.es %}
-    {{ error|pprint }}
-{% endfor %}
 <form action="" method="post" enctype="multipart/form-data">
 {% csrf_token %}
 <label>Which schema should this CSV be imported into?</label>
