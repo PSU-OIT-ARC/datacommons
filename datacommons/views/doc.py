@@ -10,27 +10,26 @@ from django.db import DatabaseError
 from django.core.exceptions import PermissionDenied
 from ..uploader.dochelpers import handleUploadedDoc
 from ..uploader.models import DocUpload
+from ..uploader.forms import DocUploadForm
 
 @login_required
 def upload(request):
     errors = {}
     if request.POST:
-        file = request.FILES.get('file', None)
-        if file is None:
-            errors['file'] = "Please choose a file to upload"
-
-        if len(errors) == 0:
-            path = handleUploadedDoc(file)
-            doc = DocUpload()
-            doc.name = file.name
-            doc.filename = os.path.basename(path)
+        form = DocUploadForm(request.POST, request.FILES);
+        if form.is_valid():
+            doc = form.instance
             doc.user = request.user
+            doc.filename = doc.file.name
             doc.save()
             request.session['doc_id'] = doc.pk
             return HttpResponseRedirect(reverse("doc-all"))
+    else:
+        form = DocUploadForm()
 
     return render(request, 'doc/upload.html', {
         'errors': errors,
+        'form': form,
     })
 
 @login_required

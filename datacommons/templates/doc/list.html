@@ -9,6 +9,7 @@
         <tr>
             <th>User</th>
             <th>File</th>
+            <th>Description</th>
             <th>Uploaded On</th>
         </tr>
     </thead>
@@ -16,8 +17,9 @@
         {% for doc in docs %}
             <tr>
                 <td>{{ doc.user.username }}</td>
-                <td><a href="{{ MEDIA_URL }}{{ doc.filename }}">{{ doc.name }}</a></td>
+                <td><a target="_blank" href="{{ MEDIA_URL }}{{ doc.file }}">{{ doc.filename }}</a></td>
                 <td>{{ doc.created_on }}</td>
+                <td>{{ doc.description }}</td>
             </tr>
         {% endfor %}
     </tbody>

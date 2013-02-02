@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from dochelpers import handleUploadedDoc
 
 class ColumnTypes:
     """An enum for column types"""
@@ -93,8 +94,10 @@ class CSVUpload(models.Model):
 class DocUpload(models.Model):
     upload_id = models.AutoField(primary_key=True)
     created_on = models.DateTimeField(auto_now_add=True)
-    name = models.CharField(max_length=255, default="")
+    description = models.CharField(max_length=255, default="")
     filename = models.CharField(max_length=255)
+    file = models.FileField(upload_to=handleUploadedDoc)
+    preference = models.IntegerField(choices=((1, "Washingtonian"), (2, "Oregonian")))
 
     user = models.ForeignKey(User, related_name='+', null=True, default=None)
 

@@ -9,15 +9,11 @@ ALLOWED_CONTENT_TYPES = [
 
 ]
 
-def handleUploadedDoc(f):
-    """Write a doc to the media directory"""
+def handleUploadedDoc(instance, filename):
+    """Return a filepath for the document"""
     #if f.content_type not in ALLOWED_CONTENT_TYPES:
     #    raise TypeError("Not a CSV! It is '%s'" % (f.content_type))
-    ext = os.path.splitext(f.name)[1]
+    ext = os.path.splitext(filename)[1]
 
     filename = uuid.uuid4()
-    path = os.path.join(SETTINGS.MEDIA_ROOT, str(filename.hex) + ext)
-    with open(path, 'wb+') as dest:
-            for chunk in f.chunks():
-                dest.write(chunk)
-    return path
+    return str(filename.hex) + ext

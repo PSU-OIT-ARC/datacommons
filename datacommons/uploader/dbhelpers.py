@@ -9,11 +9,12 @@ from .models import ColumnTypes
 
 def isSaneName(value):
     """Return true if value is a valid identifier"""
-    return value == sanitize(value) and len(value) >= 1
+    return value == sanitize(value) and len(value) >= 1 and re.search("^[a-z]", value)
 
 def sanitize(value):
     """Strip out bad characters from value"""
-    return re.sub(r'[^A-Za-z_0-9]', '', value)
+    value = value.lower()
+    return re.sub(r'[^a-z_0-9]', '', value)
 
 def getDatabaseMeta():
     """Returns a dict with keys as the schema name, and values as a dict with

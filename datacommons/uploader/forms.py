@@ -2,7 +2,7 @@ import os
 from django import forms
 from django.forms.widgets import RadioSelect
 from dbhelpers import getDatabaseMeta
-from models import CSVUpload, ColumnTypes
+from models import CSVUpload, ColumnTypes, DocUpload
 from csvhelpers import handleUploadedCSV, parseCSV
 from dbhelpers import getColumnsForTable, sanitize, isSaneName
 
@@ -70,6 +70,16 @@ class CSVUploadForm(forms.Form):
                 del cleaned_data['file']
 
         return cleaned_data
+
+class DocUploadForm(forms.ModelForm):
+    class Meta:
+        model = DocUpload
+        fields = ("description", "file", "preference")
+
+    def clean_preference(self):
+        if self.cleaned_data['preference'] == 2:
+            raise forms.ValidationError("Wrong answer, buddy!")
+        return self.cleaned_data['preference']
 
 class CSVPreviewForm(forms.Form):
     # we add all the fields dynamically in __init__

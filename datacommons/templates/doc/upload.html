@@ -3,10 +3,16 @@
 <h2>Upload a Document</h2>
 <form action="" method="post" enctype="multipart/form-data">
 {% csrf_token %}
+<label>{{ form.description.label }}</label>
+{% if form.description.errors %}<p class="error-inline">{% for error in form.description.errors %}{{ error }}{% endfor %}</p>{% endif %}
+{{ form.description }}
 
-<label>Choose a file</label>
-{% if errors.file %}<p class="error-inline">{{ errors.file }}</p>{% endif %}
-<input type="file" name="file" />
+<label>{{ form.file.label }}</label>
+{% if form.file.errors %}<p class="error-inline">{% for error in form.file.errors %}{{ error }}{% endfor %}</p>{% endif %}
+{{ form.file }}
+<label>Ethnicity</label>
+{% if form.preference.errors %}<p class="error-inline">{% for error in form.preference.errors %}{{ error }}{% endfor %}</p>{% endif %}
+{{ form.preference }}
 
 <input type="submit" name="submit" value="Upload" id="submit" />
 
