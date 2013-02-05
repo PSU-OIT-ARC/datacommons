@@ -124,6 +124,8 @@ label {
 }
 
 #preview-wrapper {
+    width:100%;
+    overflow:auto;
 }
 
 #preview {
@@ -144,6 +146,7 @@ label {
     background-color:#efefef;
     border-right:1px solid #efefef;
     border-left:1px solid  #efefef;
+    text-align:left;
 }
 
 #preview thead td {

@@ -14,8 +14,8 @@ ALLOWED_CONTENT_TYPES = [
 ]
 
 def parseCSV(filename):
-    """Parse a CSV and return the header row, the data rows, inferred data
-    types, and the names of the inferred data types"""
+    """Parse a CSV and return the header row, some of the data rows and
+    inferred data types"""
     rows = []
     max_rows = 10
     # read in the first few rows
@@ -31,8 +31,7 @@ def parseCSV(filename):
     header = [sanitize(c) for c in rows[0]]
     data = rows[1:]
     types = inferColumnTypes(data)
-    type_names = [ColumnTypes.toString(type) for type in types]
-    return header, data, types, type_names
+    return header, data, types
 
 def handleUploadedCSV(f):
     """Write a CSV to the media directory"""

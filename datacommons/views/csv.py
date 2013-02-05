@@ -148,7 +148,7 @@ def preview(request):
         form = CSVPreviewForm(upload=upload)
 
     # fetch the meta data about the csv
-    column_names, data, column_types, type_names = parseCSV(upload.filename)
+    column_names, data, column_types = parseCSV(upload.filename)
     # grab the columns from the existing table
     if upload.mode == CSVUpload.APPEND:
         existing_columns = getColumnsForTable(upload.schema, upload.table)

@@ -7,6 +7,7 @@ from csvhelpers import handleUploadedCSV, parseCSV
 from dbhelpers import getColumnsForTable, sanitize, isSaneName
 
 class CSVUploadForm(forms.Form):
+    """This is the initial form displayed to upload a CSV"""
     MODES = (
         (CSVUpload.CREATE, "create a new table"), 
         (CSVUpload.APPEND, "append to an existing table")
@@ -64,30 +65,24 @@ class CSVUploadForm(forms.Form):
         # are the right amount of columns
         if len(self._errors) == 0 and mode == CSVUpload.APPEND:
             existing_columns = getColumnsForTable(schema, table)
-            header, data, types, type_names = parseCSV(os.path.basename(self.path))
+            header, data, types = parseCSV(os.path.basename(self.path))
             if len(existing_columns) != len(header):
                 self._errors['file'] = self.error_class(["The number of columns in the CSV you selected does not match the number of columns in the table you selected"])
                 del cleaned_data['file']
 
         return cleaned_data
 
-class DocUploadForm(forms.ModelForm):
-    class Meta:
-        model = DocUpload
-        fields = ("description", "file", "preference")
-
-    def clean_preference(self):
-        if self.cleaned_data['preference'] == 2:
-            raise forms.ValidationError("Wrong answer, buddy!")
-        return self.cleaned_data['preference']
-
 class CSVPreviewForm(forms.Form):
-    # we add all the fields dynamically in __init__
+    """This form allows the user to specify the names and types of the columns
+    in their uploaded CSV (see CSVUploadForm) IF they are creating a new table. 
+    Or this form allows them to select which existing columns in the table
+    match up with their uploaded CSV"""
+    # we add all the fields dynamically here
     def __init__(self, *args, **kwargs):
         self.upload = kwargs.pop("upload")
         super(CSVPreviewForm, self).__init__(*args, **kwargs)
 
-        column_names, data, column_types, type_names = parseCSV(self.upload.filename)
+        column_names, data, column_types = parseCSV(self.upload.filename)
 
         if self.upload.mode == CSVUpload.CREATE:
             # show text field for table name
@@ -96,7 +91,12 @@ class CSVPreviewForm(forms.Form):
             choices = [(k, v) for k, v in ColumnTypes.TO_HUMAN.items()]
             for i, column_name in enumerate(column_names):
                 self.fields['column_name_%d' % (i, )] = forms.CharField(initial=sanitize(column_name))
-                self.fields['type_%d' % (i, )] = forms.TypedChoiceField(choices=choices, initial=column_types[i], coerce=int, empty_value=0)
+                self.fields['type_%d' % (i, )] = forms.TypedChoiceField(
+                    choices=choices, 
+                    initial=column_types[i], 
+                    coerce=int, 
+                    empty_value=0
+                )
         elif self.upload.mode == CSVUpload.APPEND:
             existing_columns = getColumnsForTable(self.upload.schema, self.upload.table)
             existing_column_names = [c['name'] for c in existing_columns]
@@ -182,3 +182,15 @@ class CSVPreviewForm(forms.Form):
                 raise forms.ValidationError("The columns must match the existing table")
 
         return cleaned_data
+
+class DocUploadForm(forms.ModelForm):
+    """A simple form to upload any type of document"""
+    class Meta:
+        model = DocUpload
+        fields = ("description", "file", "preference")
+
+    def clean_preference(self):
+        if self.cleaned_data['preference'] == 2:
+            raise forms.ValidationError("Wrong answer, buddy!")
+        return self.cleaned_data['preference']
+
