@@ -45,3 +45,13 @@ def all(request):
         'docs': docs,
         'doc': doc,
     })
+
+@login_required
+def download(request, doc_id):
+    """Send a document to download"""
+    doc = get_object_or_404(DocUpload, pk=doc_id)
+    file = open(os.path.join(SETTINGS.MEDIA_ROOT, doc.file.name), 'rb')
+    response = HttpResponse(file.read(), mimetype='application/force-download')
+    response['Content-Disposition'] = 'attachment; filename=%s' % doc.filename.encode('ascii', 'ignore')
+    return response
+

@@ -17,7 +17,7 @@
         {% for doc in docs %}
             <tr>
                 <td>{{ doc.user.username }}</td>
-                <td><a target="_blank" href="{{ MEDIA_URL }}{{ doc.file }}">{{ doc.filename }}</a></td>
+                <td><a target="_blank" href="{% url 'doc-download' doc.pk %}">{{ doc.filename }}</a></td>
                 <td>{{ doc.description }}</td>
                 <td>{{ doc.created_on }}</td>
             </tr>

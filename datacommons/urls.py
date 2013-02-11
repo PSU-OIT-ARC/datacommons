@@ -14,7 +14,8 @@ urlpatterns = patterns('',
     url(r'^csv/view/(.*)/(.*)/?$', csv.view, name="csv-view"),
     # url(r'^datacommons/', include('datacommons.foo.urls')),
     url(r'^doc/upload/?$', doc.upload, name='doc-upload'),
-    url(r'^doc/??$', doc.all, name='doc-all'),
+    url(r'^doc/?$', doc.all, name='doc-all'),
+    url(r'^doc/download/(\d+)?$', doc.download, name='doc-download'),
 
     # Uncomment the admin/doc line below to enable admin documentation:
     # url(r'^admin/doc/', include('django.contrib.admindocs.urls')),
