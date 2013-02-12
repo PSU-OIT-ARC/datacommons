@@ -22,44 +22,43 @@ def getDatabaseMeta():
     name}. Basically it returns the topology of the entire database"""
     sql = """
         SELECT 
-            schema_name, 
-            tables.table_name,
-            column_name,
-            data_type
+            nspname, 
+            tablename 
         FROM 
-            information_schema.schemata 
+            pg_namespace
         LEFT JOIN 
-            information_schema.tables 
-        ON 
-            table_schema = schema_name 
-        LEFT JOIN
-            information_schema.columns
-        ON
-            tables.table_name = columns.table_name
-            AND
-            tables.table_schema = columns.table_schema
-            AND column_name != 'id'
-        WHERE
-            schema_name NOT LIKE 'pg_%%' AND 
-            schema_name != 'information_schema';
+            pg_tables 
+        ON pg_namespace.nspname = pg_tables.schemaname
+        WHERE 
+            pg_namespace.nspowner != 10 
     """
     cursor = connection.cursor()
     cursor.execute(sql)
-    meta = {}
+    # meta is a dict, containing dicts, which hold lists, which hold dicts
+    meta = defaultdict(dict)
     for row in cursor.fetchall():
-        schema, table, column, data_type = row
-        if schema not in meta:
-            meta[schema] = {}
+        schema, table = row
+        meta[schema][table] = []
 
-        if table:
-            if table not in meta[schema]:
-                meta[schema][table] = []
-            type_id = ColumnTypes.fromPGTypeName(data_type)
-            meta[schema][table].append({
-                "name": column, 
-                "type": type_id,
-                "type_label": ColumnTypes.toString(type_id),
-            })
+    # grab all the columns from every table with mharvey's stored proc
+    # have to run a query in a loop because of the way the proc works
+    for schema_name, tables in meta.items():
+        for table_name in tables:
+            cursor.execute("""
+                SELECT 
+                    column_name, 
+                    column_type 
+                FROM 
+                    dc_get_table_metadata(%s, %s)
+            """, (schema_name, table_name))
+            for row in cursor.fetchall():
+                column, data_type = row
+                type_id = ColumnTypes.fromPGTypeName(data_type)
+                meta[schema_name][table_name].append({
+                    "name": column, 
+                    "type": type_id,
+                    "type_label": ColumnTypes.toString(type_id),
+                })
     return meta
 
 def getColumnsForTable(schema, table):
