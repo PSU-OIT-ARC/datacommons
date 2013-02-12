@@ -92,11 +92,23 @@ def inferColumnType(rows, column_index):
         data.append(rows[row_index][column_index])
 
     # try to deduce the column type
-    # is char?
+    # int?
     for val in data:
-        # purposefully exlcuding e and E because we want to exclude numbers like 5.5e10
-        if re.search(r'[A-DF-Za-df-z]', val):
-            return ColumnTypes.CHAR
+        try:
+            int(val)
+        except ValueError:
+            break
+    else:
+        return ColumnTypes.INTEGER
+
+    # float?
+    for val in data:
+        try:
+            float(val)
+        except ValueError:
+            break
+    else:
+        return ColumnTypes.NUMERIC
 
     # is timestamp?
     for val in data:
@@ -108,13 +120,8 @@ def inferColumnType(rows, column_index):
             else:
                 return ColumnTypes.TIMESTAMP
 
-    # is numeric?
-    for val in data:
-        if re.search(r'[.e]', val):
-            return ColumnTypes.NUMERIC
-
-    # ...must be an int
-    return ColumnTypes.INTEGER
+    # nothing special
+    return ColumnTypes.CHAR
 
 def inferColumnTypes(rows):
     types = []
