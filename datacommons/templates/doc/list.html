@@ -10,6 +10,7 @@
             <th>User</th>
             <th>File</th>
             <th>Description</th>
+            <th>Source</th>
             <th>Uploaded On</th>
         </tr>
     </thead>
@@ -19,6 +20,7 @@
                 <td>{{ doc.user.username }}</td>
                 <td><a target="_blank" href="{% url 'doc-download' doc.pk %}">{{ doc.filename }}</a></td>
                 <td>{{ doc.description }}</td>
+                <td>{{ doc.source.name }}</td>
                 <td>{{ doc.created_on }}</td>
             </tr>
         {% endfor %}
