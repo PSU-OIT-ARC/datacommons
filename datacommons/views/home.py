@@ -20,6 +20,7 @@ def register(request):
         if form.is_valid():
             user = form.save(commit=False)
             user.is_active = False
+            user.email = user.username
             user.save()
             message = """My Dearest P-dawg:
 I regret to inform you that yet another person (%s) has registered

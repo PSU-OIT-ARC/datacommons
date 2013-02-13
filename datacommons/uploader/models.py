@@ -118,4 +118,4 @@ class DocUpload(models.Model):
         #ordering = ['created_on']
 
     def __unicode__(self):
-        return u'%s' % (self.name)
+        return u'%s' % (self.filename)
