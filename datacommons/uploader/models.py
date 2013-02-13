@@ -93,6 +93,15 @@ class CSVUpload(models.Model):
 
 class Source(models.Model):
     source_id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=255, default="")
+    rank = models.IntegerField()
+
+    class Meta:
+        db_table = 'source'
+        ordering = ['rank']
+
+    def __unicode__(self):
+        return u'%s' % (self.name)
 
 class DocUpload(models.Model):
     upload_id = models.AutoField(primary_key=True)
@@ -100,8 +109,8 @@ class DocUpload(models.Model):
     description = models.CharField(max_length=255, default="")
     filename = models.CharField(max_length=255)
     file = models.FileField(upload_to=handleUploadedDoc)
-    preference = models.IntegerField(choices=((1, "Washingtonian"), (2, "Oregonian")))
 
+    source = models.ForeignKey(Source)
     user = models.ForeignKey(User, related_name='+', null=True, default=None)
 
     class Meta:

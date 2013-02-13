@@ -30,7 +30,7 @@ def getDatabaseMeta():
             pg_tables 
         ON pg_namespace.nspname = pg_tables.schemaname
         WHERE 
-            pg_namespace.nspowner != 10 
+            pg_namespace.nspowner != 10;
     """
     cursor = connection.cursor()
     cursor.execute(sql)
@@ -70,7 +70,7 @@ def getColumnsForTable(schema, table):
     meta = getDatabaseMeta()
     return meta[schema][table]
 
-def createTable(schema_name, table_name, column_names, column_types, commit=False):
+def createTable(schema_name, table_name, column_names, column_types, primary_keys, commit=False):
     """Create a table in schema_name named table_name, with columns named
     column_names, with types column_types. Automatically creates a primary
     key for the table"""
@@ -82,6 +82,11 @@ def createTable(schema_name, table_name, column_names, column_types, commit=Fals
     for name in column_names:
         names.append('"' + sanitize(name) + '"')
     column_names = names
+
+    names = []
+    for name in primary_keys:
+        names.append('"' + sanitize(name) + '"')
+    primary_keys = names
 
     # get all the column type names
     types = []
@@ -102,8 +107,14 @@ def createTable(schema_name, table_name, column_names, column_types, commit=Fals
     """ % (schema_name, table_name, sql)
     cursor = connection.cursor()
     cursor.execute(sql)
+    # add the primary key, if there is one
+    if len(primary_keys):
+        sql = """ALTER TABLE "%s"."%s" ADD PRIMARY KEY (%s);""" % (schema_name, table_name, ",".join(primary_keys))
+        cursor.execute(sql)
+
+    # run morgan's fancy proc
     cursor.execute("SELECT dc_set_perms(%s, %s);", (schema_name, table_name))
-    #cursor.execute("SELECT dc_set_perms(%s, %s);", (schema_name, table_name))
+
     if commit:
         transaction.commit_unless_managed()
 

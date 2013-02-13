@@ -118,8 +118,9 @@ def preview(request):
                 # build the table and insert all the data
                 column_names = form.cleanedColumnNames()
                 column_types = form.cleanedColumnTypes()
+                primary_keys = form.cleanedPrimaryKeyColumnNames()
                 try:
-                    createTable(upload.schema, upload.table, column_names, column_types)
+                    createTable(upload.schema, upload.table, column_names, column_types, primary_keys)
                     insertCSVInto(upload.filename, upload.schema, upload.table, column_names, commit=True)
                 except DatabaseError as e:
                     error = str(e)

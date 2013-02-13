@@ -1,6 +1,8 @@
 import os
 from django import forms
+from django.contrib.auth.forms import UserCreationForm
 from django.forms.widgets import RadioSelect
+from django.core.validators import validate_email
 from dbhelpers import getDatabaseMeta
 from models import CSVUpload, ColumnTypes, DocUpload
 from csvhelpers import handleUploadedCSV, parseCSV
@@ -97,6 +99,11 @@ class CSVPreviewForm(forms.Form):
                     coerce=int, 
                     empty_value=0
                 )
+
+            # add the primary key fields
+            for i, column_name in enumerate(column_names):
+                self.fields['is_pk_%d' % (i, )] = forms.BooleanField(initial=False, required=False)
+
         elif self.upload.mode == CSVUpload.APPEND:
             existing_columns = getColumnsForTable(self.upload.schema, self.upload.table)
             existing_column_names = [c['name'] for c in existing_columns]
@@ -136,6 +143,26 @@ class CSVPreviewForm(forms.Form):
             if k.startswith("type_"):
                 fields.append(self[k])
         return fields
+
+    def pkFields(self):
+        """Return a list of pk fields so they can be iterated over in a
+        template"""
+        fields = []
+        for k, v in self.fields.items():
+            if k.startswith("is_pk_"):
+                fields.append(self[k])
+        return fields
+
+    def cleanedPrimaryKeyColumnNames(self):
+        """Return a list of booleans indicating if the field is a pk"""
+        data = []
+        index = 0
+        for k, v in self.fields.items():
+            if k.startswith("is_pk_"):
+                if self.cleaned_data[k]:
+                    data.append(self.cleaned_data["column_name_%d" % (index)])
+                index += 1
+        return data
 
     def cleanedColumnNames(self):
         """Return a list of the cleaned column name data"""
@@ -185,12 +212,18 @@ class CSVPreviewForm(forms.Form):
 
 class DocUploadForm(forms.ModelForm):
     """A simple form to upload any type of document"""
+    def __init__(self, *args, **kwargs):
+        super(DocUploadForm, self).__init__(*args, **kwargs)
+        choices = list(self.fields['source'].choices)
+        choices.pop(0)
+        self.fields['source'].choices = choices
+
     class Meta:
         model = DocUpload
-        fields = ("description", "file", "preference")
+        fields = ("description", "file", "source")
 
-    def clean_preference(self):
-        #if self.cleaned_data['preference'] == 2:
-        #    raise forms.ValidationError("Wrong answer, buddy!")
-        return self.cleaned_data['preference']
-
+class UserRegistrationForm(UserCreationForm):
+    def __init__(self, *args, **kwargs):
+        super(UserRegistrationForm, self).__init__(*args, **kwargs)
+        self.fields['username'].validators.append(validate_email)
+        self.fields['username'].label = "Email"

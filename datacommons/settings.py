@@ -1,6 +1,8 @@
 import os
 from django.conf.global_settings import TEMPLATE_CONTEXT_PROCESSORS
 
+USER_REGISTRATION_NOTIFICATION_EMAIL = 'mdj2@pdx.edu'
+
 PROJECT_DIR = os.path.dirname(__file__)
 HOME_DIR = os.path.normpath(os.path.join(PROJECT_DIR, '../'))
 # Django settings for datacommons project.

@@ -79,6 +79,7 @@ def insertCSVInto(filename, schema_name, table_name, column_names, commit=False,
             except DatabaseError as e:
                 # give a very detailed error message
                 # row_i is zero based, while the CSV is 1 based, hence the +1 on row_i
+                connection._rollback()
                 raise DatabaseError("Tried to insert line %s of the CSV, got this from database: %s. SQL was: %s" % 
                 (row_i + 1, str(e), connection.queries[-1]['sql'])) 
 
@@ -112,13 +113,16 @@ def inferColumnType(rows, column_index):
 
     # is timestamp?
     for val in data:
-        if re.search(r'[:]', val):
-            # if the value is longer than "2012-05-05 08:01:01" it probably
-            # has a timezone appended to the end
-            if len(val) > len("2012-05-05 08:01:01"):
-                return ColumnTypes.TIMESTAMP_WITH_ZONE
-            else:
-                return ColumnTypes.TIMESTAMP
+        # timestamps only will contain these chars
+        if not re.search(r'^[+: 0-9-]*$', val):
+            break
+    else:
+        # if the value is longer than "2012-05-05 08:01:01" it probably
+        # has a timezone appended to the end
+        if len(data[0]) > len("2012-05-05 08:01:01"):
+            return ColumnTypes.TIMESTAMP_WITH_ZONE
+        else:
+            return ColumnTypes.TIMESTAMP
 
     # nothing special
     return ColumnTypes.CHAR
