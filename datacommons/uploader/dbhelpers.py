@@ -35,10 +35,14 @@ def getDatabaseMeta():
     cursor = connection.cursor()
     cursor.execute(sql)
     # meta is a dict, containing dicts, which hold lists, which hold dicts
-    meta = defaultdict(dict)
+    meta = {}
     for row in cursor.fetchall():
         schema, table = row
-        meta[schema][table] = []
+        if schema not in meta:
+            meta[schema] = {}
+
+        if table and table not in meta[schema]:
+            meta[schema][table] = []
 
     # grab all the columns from every table with mharvey's stored proc
     # have to run a query in a loop because of the way the proc works
@@ -93,12 +97,13 @@ def createTable(schema_name, table_name, column_names, column_types, commit=Fals
     # sure hope this is SQL injection proof
     sql = """
         CREATE TABLE "%s"."%s" (
-            id SERIAL PRIMARY KEY,
             %s
         );
     """ % (schema_name, table_name, sql)
     cursor = connection.cursor()
     cursor.execute(sql)
+    cursor.execute("SELECT dc_set_perms(%s, %s);", (schema_name, table_name))
+    #cursor.execute("SELECT dc_set_perms(%s, %s);", (schema_name, table_name))
     if commit:
         transaction.commit_unless_managed()
 

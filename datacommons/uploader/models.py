@@ -91,6 +91,9 @@ class CSVUpload(models.Model):
     def __unicode__(self):
         return u'%s.%s' % (self.schema, self.table)
 
+class Source(models.Model):
+    source_id = models.AutoField(primary_key=True)
+
 class DocUpload(models.Model):
     upload_id = models.AutoField(primary_key=True)
     created_on = models.DateTimeField(auto_now_add=True)

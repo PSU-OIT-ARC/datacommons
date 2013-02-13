@@ -190,7 +190,7 @@ class DocUploadForm(forms.ModelForm):
         fields = ("description", "file", "preference")
 
     def clean_preference(self):
-        if self.cleaned_data['preference'] == 2:
-            raise forms.ValidationError("Wrong answer, buddy!")
+        #if self.cleaned_data['preference'] == 2:
+        #    raise forms.ValidationError("Wrong answer, buddy!")
         return self.cleaned_data['preference']
 
