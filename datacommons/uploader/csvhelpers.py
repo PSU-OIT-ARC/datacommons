@@ -96,7 +96,11 @@ def inferColumnType(rows, column_index):
     # int?
     for val in data:
         try:
-            int(val)
+            val = int(val)
+            # http://www.postgresql.org/docs/8.2/static/datatype-numeric.html
+            # is the value too big (positive or negative) for postgres?
+            if val < -2147483648 or val > +2147483647:
+                raise ValueError('Too big')
         except ValueError:
             break
     else:

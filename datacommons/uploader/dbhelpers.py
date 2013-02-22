@@ -13,7 +13,8 @@ def isSaneName(value):
 
 def sanitize(value):
     """Strip out bad characters from value"""
-    value = value.lower()
+    value = value.lower().strip()
+    value = re.sub(r'\s+', '_', value)
     return re.sub(r'[^a-z_0-9]', '', value)
 
 def getDatabaseMeta():
@@ -93,7 +94,10 @@ def createTable(schema_name, table_name, column_names, column_types, primary_key
     for type in column_types:
         types.append(ColumnTypes.toPGType(int(type)))
 
-    # build up part of the query
+    # build up part of the query string defining the columns. e.g.
+    # alpha integer,
+    # beta decimal,
+    # gamma text
     sql = []
     for i in range(len(column_names)):
         sql.append(column_names[i] + " " + types[i])
