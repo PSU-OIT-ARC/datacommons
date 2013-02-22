@@ -14,7 +14,7 @@ def isSaneName(value):
 def sanitize(value):
     """Strip out bad characters from value"""
     value = value.lower().strip()
-    value = re.sub(r'\s+', '_', value)
+    value = re.sub(r'\s+', '_', value).strip(['_'])
     return re.sub(r'[^a-z_0-9]', '', value)
 
 def getDatabaseMeta():
