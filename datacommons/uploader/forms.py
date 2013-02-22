@@ -184,9 +184,11 @@ class CSVPreviewForm(forms.Form):
         """Return a map where the key is the column name, and the value is the
         int representing the order of the column in the csv""" 
         map = {}
-        for i, k in enumerate(self.fields):
-            if k.startswith("column_name_"):
-                map[self.cleaned_data[k]] = i
+        index = 0
+        for field_name in self.fields:
+            if field_name.startswith("column_name_"):
+                map[self.cleaned_data[field_name]] = index
+                index += 1
         return map
 
     def clean(self):

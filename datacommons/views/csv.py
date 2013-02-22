@@ -121,7 +121,13 @@ def preview(request):
                 primary_keys = form.cleanedPrimaryKeyColumnNames()
                 try:
                     createTable(upload.schema, upload.table, column_names, column_types, primary_keys)
-                    insertCSVInto(upload.filename, upload.schema, upload.table, column_names, commit=True)
+                    insertCSVInto(
+                        upload.filename, 
+                        upload.schema, 
+                        upload.table, 
+                        column_names, 
+                        column_name_to_column_index=form.mapColumnNameToColumnIndex(),
+                        commit=True)
                 except DatabaseError as e:
                     error = str(e)
             elif upload.mode == upload.APPEND:
@@ -132,8 +138,8 @@ def preview(request):
                         upload.schema, 
                         upload.table, 
                         form.cleanedColumnNames(), 
-                        commit=True, 
                         column_name_to_column_index=form.mapColumnNameToColumnIndex(),
+                        commit=True, 
                     )
                 except DatabaseError as e:
                     error = str(e)

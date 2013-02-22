@@ -45,7 +45,7 @@ def handleUploadedCSV(f):
                 dest.write(chunk)
     return path
 
-def insertCSVInto(filename, schema_name, table_name, column_names, commit=False, column_name_to_column_index=None):
+def insertCSVInto(filename, schema_name, table_name, column_names, column_name_to_column_index, commit=False):
     """Read a CSV and insert into schema_name.table_name"""
     # sanitize everything
     schema_name = sanitize(schema_name)
@@ -70,10 +70,10 @@ def insertCSVInto(filename, schema_name, table_name, column_names, commit=False,
             for col_i, col in enumerate(row):
                 row[col_i] = col if col != "" else None
 
-            if column_name_to_column_index is not None:
-                # remap the columns since the order of the columns in the CSV does not match
-                # the order of the columns in the db table
-                row = [row[column_name_to_column_index[k]] for k in column_names]
+            # remap the columns since the order of the columns in the CSV does not match
+            # the order of the columns in the db table
+            row = [row[column_name_to_column_index[k]] for k in column_names]
+
             try:
                 cursor.execute(sql, row)
             except DatabaseError as e:
@@ -118,7 +118,7 @@ def inferColumnType(rows, column_index):
     # is timestamp?
     for val in data:
         # timestamps only will contain these chars
-        if not re.search(r'^[+: 0-9-]*$', val):
+        if not re.search(r'^[+: 0-9-]+$', val):
             break
     else:
         # if the value is longer than "2012-05-05 08:01:01" it probably

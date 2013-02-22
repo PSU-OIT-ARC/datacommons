@@ -68,6 +68,7 @@ class CSVUpload(models.Model):
     # mode
     CREATE = 1
     APPEND = 2
+    REPLACE = 3
 
     # status
     DONE = 4
@@ -79,7 +80,7 @@ class CSVUpload(models.Model):
     schema = models.CharField(max_length=255)
     table = models.CharField(max_length=255, null=True)
     name = models.CharField(max_length=255, default="")
-    status = models.IntegerField(default=PENDING)
+    status = models.IntegerField(choices=((DONE, "Done"), (PENDING, "Pending")), default=PENDING)
     mode = models.IntegerField(choices=((APPEND, "Append"), (CREATE, "Create")))
 
     user = models.ForeignKey(User, related_name='+', null=True, default=None)
@@ -94,7 +95,7 @@ class CSVUpload(models.Model):
 class Source(models.Model):
     source_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255, default="")
-    rank = models.IntegerField()
+    rank = models.IntegerField(verbose_name="Order") # just the order these rows should appear in
 
     class Meta:
         db_table = 'source'
