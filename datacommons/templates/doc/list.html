@@ -21,7 +21,7 @@
                 <td><a target="_blank" href="{% url 'doc-download' doc.pk %}">{{ doc.filename }}</a></td>
                 <td>{{ doc.description }}</td>
                 <td>{{ doc.source.name }}</td>
-                <td>{{ doc.created_on }}</td>
+                <td><span class="timestamp">{{ doc.created_on }}</span></td>
             </tr>
         {% endfor %}
     </tbody>

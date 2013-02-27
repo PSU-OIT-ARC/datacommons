@@ -1,8 +1,17 @@
 $(document).ready(function(){
-    // convert all timestamps to local time
-    $('.timestamp').each(function(i){
-        var ts = parseInt($(this).text(), 10);
-        var d = new Date(ts * 1000);
-        $(this).text(d.toLocaleString());
+    $('.timestamp').each(function(el, i){
+        var d = new Date($(this).text());
+        var year = d.getFullYear();
+        var month = d.getMonth() + 1;
+        if(month < 10) month = "0" + month;
+        var day = d.getDate();
+        if(day < 10) day = "0" + day
+        var hours = d.getHours();
+        if(hours < 10) hours = "0" + hours
+        var minutes = d.getMinutes();
+        if(minutes < 10) minutes = "0" + minutes;
+        var seconds = d.getSeconds();
+        if(seconds < 10) seconds = "0" + seconds;
+        $(this).text([year, month, day].join("-") + " " + [hours, minutes, seconds].join(":"))
     });
 });
