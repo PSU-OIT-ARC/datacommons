@@ -11,7 +11,7 @@ USER_REGISTRATION_NOTIFICATION_EMAIL = 'mdj2@pdx.edu'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2', # Add 'postgresql_psycopg2', 'mysql', 'sqlite3' or 'oracle'.
+        'ENGINE': 'django.contrib.gis.db.backends.postgis', # Add 'postgresql_psycopg2', 'mysql', 'sqlite3' or 'oracle'.
         'NAME': 'datacommons_dev',                      # Or path to database file if using sqlite3.
         'USER': 'datacommons',                      # Not used with sqlite3.
         'PASSWORD': 'password',                  # Not used with sqlite3.
