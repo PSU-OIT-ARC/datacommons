@@ -31,7 +31,7 @@ def getDatabaseMeta():
             pg_tables 
         ON pg_namespace.nspname = pg_tables.schemaname
         WHERE 
-            pg_namespace.nspowner != 10;
+            pg_namespace.nspowner != 10 AND nspname != 'geometries'
     """
     cursor = connection.cursor()
     cursor.execute(sql)
