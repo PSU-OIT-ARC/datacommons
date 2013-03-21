@@ -58,7 +58,10 @@ def getDatabaseMeta():
             """, (schema_name, table_name))
             for row in cursor.fetchall():
                 column, data_type = row
-                type_id = ColumnTypes.fromPGTypeName(data_type)
+                try:
+                    type_id = ColumnTypes.fromPGTypeName(data_type)
+                except KeyError:
+                    raise ValueError("Table %s.%s has a column of type %s which is not supported" % (schema_name, table_name, data_type))
                 meta[schema_name][table_name].append({
                     "name": column, 
                     "type": type_id,
