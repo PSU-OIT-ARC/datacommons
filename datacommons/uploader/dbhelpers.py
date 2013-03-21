@@ -61,7 +61,7 @@ def getDatabaseMeta():
                 try:
                     type_id = ColumnTypes.fromPGTypeName(data_type)
                 except KeyError:
-                    raise ValueError("Table %s.%s has a column of type %s which is not supported" % (schema_name, table_name, data_type))
+                    raise ValueError("Table '%s.%s' has a column of type '%s' which is not supported" % (schema_name, table_name, data_type))
                 meta[schema_name][table_name].append({
                     "name": column, 
                     "type": type_id,
