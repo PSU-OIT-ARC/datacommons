@@ -58,9 +58,9 @@ def insertCSVInto(filename, schema_name, table_name, column_names, column_name_t
     path = os.path.join(SETTINGS.MEDIA_ROOT, filename)
     cursor = connection.cursor()
     # build the query string
-    cols = ','.join(['"' + n + '"' for n in column_names])
+    cols = ','.join([n for n in column_names])
     escape_string = ",".join(["%s" for i in range(len(column_names))])
-    sql = """INSERT INTO "%s"."%s" (%s) VALUES(%s)""" % (schema_name, table_name, cols, escape_string)
+    sql = """INSERT INTO %s.%s (%s) VALUES(%s)""" % (schema_name, table_name, cols, escape_string)
     # execute the query string for every row
     with open(path, 'rb') as csvfile:
         reader = csv.reader(csvfile)
@@ -87,11 +87,7 @@ def insertCSVInto(filename, schema_name, table_name, column_names, column_name_t
         transaction.commit_unless_managed()
 
 # helpers for parseCsv
-def inferColumnType(rows, column_index):
-    data = []
-    for row_index in range(len(rows)):
-        data.append(rows[row_index][column_index])
-
+def inferColumnType(data):
     # try to deduce the column type
     # int?
     for val in data:
@@ -135,5 +131,8 @@ def inferColumnTypes(rows):
     types = []
     number_of_columns = len(rows[0])
     for i in range(number_of_columns):
-        types.append(inferColumnType(rows, i))
+        data = []
+        for row_index in range(len(rows)):
+            data.append(rows[row_index][column_index])
+        types.append(inferColumnType(data))
     return types
