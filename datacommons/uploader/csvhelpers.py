@@ -130,7 +130,7 @@ def inferColumnType(data):
 def inferColumnTypes(rows):
     types = []
     number_of_columns = len(rows[0])
-    for i in range(number_of_columns):
+    for column_index in range(number_of_columns):
         data = []
         for row_index in range(len(rows)):
             data.append(rows[row_index][column_index])
