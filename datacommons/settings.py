@@ -5,6 +5,8 @@ PROJECT_DIR = os.path.dirname(__file__)
 HOME_DIR = os.path.normpath(os.path.join(PROJECT_DIR, '../'))
 # Django settings for datacommons project.
 
+ALLOWED_HOSTS = ['.pdx.edu']
+
 DATETIME_FORMAT = 'c'
 
 # Local time zone for this installation. Choices can be found here:
