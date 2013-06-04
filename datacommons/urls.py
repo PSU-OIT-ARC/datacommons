@@ -25,10 +25,10 @@ urlpatterns = patterns('',
 
 
     # registration
-    url(r'^register/?$', home.register),
-    url(r'^accounts/login/?$', 'django.contrib.auth.views.login'),
-    url(r'^accounts/profile/?$', home.profile, name="account-home"),
-    url(r'^accounts/logout/?$', 'django.contrib.auth.views.logout', {"next_page": "/"}),
+    url(r'^register/?$', home.register, name="register"),
+    url(r'^accounts/login/?$', 'django.contrib.auth.views.login', name="login"),
+    url(r'^accounts/profile/?$', home.profile, name="profile"),
+    url(r'^accounts/logout/?$', 'django.contrib.auth.views.logout', {"next_page": "/"}, name="logout"),
 
     # reset password
     url(r'^accounts/reset/?$', 'django.contrib.auth.views.password_reset', {"from_email": "django@pdx.edu"}),

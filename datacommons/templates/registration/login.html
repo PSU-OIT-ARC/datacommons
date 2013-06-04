@@ -7,5 +7,5 @@
     <input type="submit" name="submit" value="Submit" />
 </form>
 
-<p><a href="/accounts/reset">Forgot your credentials?</a> | <a href="/register">Request an account</a></p>
+<p><a href="{% url 'django.contrib.auth.views.password_reset'%}">Forgot your credentials?</a> | <a href="{% url 'register' %}">Request an account</a></p>
 {% endblock %}

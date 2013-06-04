@@ -1,5 +1,4 @@
 {% extends "main.html" %}
-{% load url from future %}
 {% block content %}
 <h2>Login</h2>
 <form method="post" action="{% url 'django.contrib.auth.views.login' %}">
@@ -11,5 +10,5 @@
     <input type="hidden" name="next" value="" />
 </form>
 
-<p><a href="/accounts/reset">Forgot your credentials?</a> | <a href="/register">Request an account</a></p>
+<p><a href="{% url 'django.contrib.auth.views.password_reset'%}">Forgot your credentials?</a> | <a href="{% url 'register' %}">Request an account</a></p>
 {% endblock %}
