@@ -40,6 +40,27 @@ class CSVUploadForm(forms.Form):
         
         return schema
 
+    def clean_file(self):
+        # attempt an upload
+        file = self.cleaned_data["file"]
+        self.path = None
+
+        if not file:
+            return None
+
+        try:
+            self.path = handleUploadedCSV(file)
+        except TypeError as e:
+            raise forms.ValidationError(str(e))
+
+        # try to parse it
+        try:
+            parseCSV(os.path.basename(self.path))
+        except UnicodeDecodeError as e:
+            raise forms.ValidationError("The file has corrupt characters on line %d. Edit the file and remove or replace the invalid characters" % (e.line))
+
+        return file
+
     def clean(self):
         cleaned_data = super(CSVUploadForm, self).clean()
         # check if the table they chose exists (in append mode)
@@ -52,16 +73,6 @@ class CSVUploadForm(forms.Form):
                 # make sure the error message is displayed by removing it from
                 # cleaned_data
                 cleaned_data.pop('mode', None)
-
-        # attempt an upload
-        file = self.cleaned_data.get("file", None)
-        self.path = None
-        if len(self._errors) == 0 and file is not None:
-            try:
-                self.path = handleUploadedCSV(file)
-            except TypeError as e:
-                self._errors['file'] = self.error_class([str(e)])
-                del cleaned_data['file']
 
         # if the upload was successful, and the mode is append, make sure there
         # are the right amount of columns

@@ -1,11 +1,11 @@
 import re
-import csv
 import uuid
 import os
 from django.conf import settings as SETTINGS
 from django.db import connection, transaction, DatabaseError
 from .models import ColumnTypes
 from .dbhelpers import sanitize
+from datacommons.unicodecsv import UnicodeReader
 
 ALLOWED_CONTENT_TYPES = [
     'text/csv', 
@@ -18,15 +18,20 @@ def parseCSV(filename):
     inferred data types"""
     rows = []
     max_rows = 10
-    # read in the first few rows
+    # read in the first few rows, and save to a buffer.
+    # Continue reading to check for any encoding errors
     path = os.path.join(SETTINGS.MEDIA_ROOT, filename)
-    with open(path, 'rb') as csvfile:
-        reader = csv.reader(csvfile)
-        for i, row in enumerate(reader):
-            if i < max_rows:
-                rows.append(row)
-            else:
-                break
+    with open(path, 'r') as csvfile:
+        reader = UnicodeReader(csvfile)
+        try:
+            for i, row in enumerate(reader):
+                if i < max_rows:
+                    rows.append(row)
+        except UnicodeDecodeError as e:
+            # tack on the line number to the exception so the caller can know
+            # which line the error was on
+            e.line = (i + 1)
+            raise
 
     header = [sanitize(c) for c in rows[0]]
     data = rows[1:]
@@ -62,8 +67,8 @@ def insertCSVInto(filename, schema_name, table_name, column_names, column_name_t
     escape_string = ",".join(["%s" for i in range(len(column_names))])
     sql = """INSERT INTO %s.%s (%s) VALUES(%s)""" % (schema_name, table_name, cols, escape_string)
     # execute the query string for every row
-    with open(path, 'rb') as csvfile:
-        reader = csv.reader(csvfile)
+    with open(path, 'r') as csvfile:
+        reader = UnicodeReader(csvfile)
         for row_i, row in enumerate(reader):
             if row_i == 0: continue # skip header row
             # convert empty strings to null

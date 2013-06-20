@@ -9,7 +9,7 @@ from ..uploader.forms import UserRegistrationForm
 
 def index(request):
     if request.user.is_authenticated():
-        return HttpResponseRedirect(reverse("account-home"))
+        return HttpResponseRedirect(reverse("profile"))
     return render(request, "home/home.html", {
 
     })
