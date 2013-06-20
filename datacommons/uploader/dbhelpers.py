@@ -1,7 +1,6 @@
 import uuid
 import os
 import re
-import csv
 from collections import defaultdict
 from django.conf import settings as SETTINGS
 from django.db import connection, transaction
