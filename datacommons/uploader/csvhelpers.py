@@ -3,8 +3,8 @@ import uuid
 import os
 from django.conf import settings as SETTINGS
 from django.db import connection, transaction, DatabaseError
-from .models import ColumnTypes
-from .dbhelpers import sanitize
+from .models import ColumnTypes, CSVUpload
+from .dbhelpers import sanitize, getPrimaryKeysForTable
 from datacommons.unicodecsv import UnicodeReader
 
 ALLOWED_CONTENT_TYPES = [
@@ -29,8 +29,9 @@ def parseCSV(filename):
                     rows.append(row)
         except UnicodeDecodeError as e:
             # tack on the line number to the exception so the caller can know
-            # which line the error was on
-            e.line = (i + 1)
+            # which line the error was on. The +2 is because i starts at 0, *and*
+            # i in not incremented when the exception is thrown
+            e.line = (i + 2)
             raise
 
     header = [sanitize(c) for c in rows[0]]
@@ -50,7 +51,7 @@ def handleUploadedCSV(f):
                 dest.write(chunk)
     return path
 
-def insertCSVInto(filename, schema_name, table_name, column_names, column_name_to_column_index, commit=False):
+def importCSVInto(filename, schema_name, table_name, column_names, column_name_to_column_index, mode, commit=False):
     """Read a CSV and insert into schema_name.table_name"""
     # sanitize everything
     schema_name = sanitize(schema_name)
@@ -60,13 +61,22 @@ def insertCSVInto(filename, schema_name, table_name, column_names, column_name_t
         names.append(sanitize(name))
     column_names = names
 
-    path = os.path.join(SETTINGS.MEDIA_ROOT, filename)
-    cursor = connection.cursor()
-    # build the query string
-    cols = ','.join([n for n in column_names])
-    escape_string = ",".join(["%s" for i in range(len(column_names))])
-    sql = """INSERT INTO %s.%s (%s) VALUES(%s)""" % (schema_name, table_name, cols, escape_string)
+    # build the query string for insert
+    do_insert = mode in [CSVUpload.CREATE, CSVUpload.APPEND, CSVUpload.UPSERT]
+    if do_insert:
+        cols = ','.join([n for n in column_names])
+        escape_string = ",".join(["%s" for i in range(len(column_names))])
+        insert_sql = """INSERT INTO %s.%s (%s) VALUES(%s)""" % (schema_name, table_name, cols, escape_string)
+
+    # build the query string for delete
+    do_delete = mode in [CSVUpload.UPSERT, CSVUpload.DELETE]
+    if do_delete:
+        pks = getPrimaryKeysForTable(schema_name, table_name)
+        escape_string = ",".join(["%s = %%s" % pk for pk in pks])
+        delete_sql = "DELETE FROM %s.%s WHERE %s" % (schema_name, table_name, escape_string)
+
     # execute the query string for every row
+    path = os.path.join(SETTINGS.MEDIA_ROOT, filename)
     with open(path, 'r') as csvfile:
         reader = UnicodeReader(csvfile)
         for row_i, row in enumerate(reader):
@@ -75,21 +85,33 @@ def insertCSVInto(filename, schema_name, table_name, column_names, column_name_t
             for col_i, col in enumerate(row):
                 row[col_i] = col if col != "" else None
 
-            # remap the columns since the order of the columns in the CSV does not match
-            # the order of the columns in the db table
-            row = [row[column_name_to_column_index[k]] for k in column_names]
+            if do_delete:
+                # remap the primary key columns since the order of the columns in the CSV does not match
+                # the order of the columns in the db table
+                params = [row[column_name_to_column_index[k]] for k in pks]
+                _doSQL(delete_sql, params, "delete", row_i + 1)
 
-            try:
-                cursor.execute(sql, row)
-            except DatabaseError as e:
-                # give a very detailed error message
-                # row_i is zero based, while the CSV is 1 based, hence the +1 on row_i
-                connection._rollback()
-                raise DatabaseError("Tried to insert line %s of the CSV, got this from database: %s. SQL was: %s" % 
-                (row_i + 1, str(e), connection.queries[-1]['sql'])) 
+            if do_insert:
+                # remap the columns since the order of the columns in the CSV does not match
+                # the order of the columns in the db table
+                params = [row[column_name_to_column_index[k]] for k in column_names]
+                _doSQL(insert_sql, params, "insert", row_i + 1)
 
     if commit:
         transaction.commit_unless_managed()
+
+def _doSQL(sql, params, exception_operation, exception_line):
+    """
+    helper for importCSVInto(), just runs the sql, with params, and
+    generates a nice exception
+    """
+    cursor = connection.cursor()
+    try:
+        cursor.execute(sql, params)
+    except DatabaseError as e:
+        connection._rollback()
+        raise DatabaseError("Tried to %s line %s of the CSV, got this from database: %s. SQL was: %s" % 
+            (exception_operation, exception_line, str(e), connection.queries[-1]['sql'])) 
 
 # helpers for parseCsv
 def inferColumnType(data):

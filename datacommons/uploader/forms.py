@@ -6,13 +6,15 @@ from django.core.validators import validate_email
 from dbhelpers import getDatabaseMeta
 from models import CSVUpload, ColumnTypes, DocUpload
 from csvhelpers import handleUploadedCSV, parseCSV
-from dbhelpers import getColumnsForTable, sanitize, isSaneName
+from dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable
 
 class CSVUploadForm(forms.Form):
     """This is the initial form displayed to upload a CSV"""
     MODES = (
         (CSVUpload.CREATE, "create a new table"), 
-        (CSVUpload.APPEND, "append to an existing table")
+        (CSVUpload.APPEND, "append to an existing table"),
+        (CSVUpload.UPSERT, "append to or update an existing table"),
+        (CSVUpload.DELETE, "delete rows from an existing table"),
     )
 
     schema = forms.ChoiceField(widget=forms.Select)
@@ -67,21 +69,27 @@ class CSVUploadForm(forms.Form):
         mode = cleaned_data.get("mode", 0)
         table = cleaned_data.get("table", "")
         schema = cleaned_data.get("schema", "")
-        if mode == CSVUpload.APPEND:
+        if mode in [CSVUpload.APPEND, CSVUpload.UPSERT, CSVUpload.DELETE]:
             if schema in self.db_meta and table not in self.db_meta[schema]:
-                self._errors['mode'] = self.error_class(['Choose a table!'])
+                self._errors['table'] = self.error_class(['Choose a table!'])
                 # make sure the error message is displayed by removing it from
                 # cleaned_data
-                cleaned_data.pop('mode', None)
+                cleaned_data.pop('table', None)
 
         # if the upload was successful, and the mode is append, make sure there
         # are the right amount of columns
-        if len(self._errors) == 0 and mode == CSVUpload.APPEND:
+        if len(self._errors) == 0 and mode in [CSVUpload.APPEND, CSVUpload.UPSERT]:
             existing_columns = getColumnsForTable(schema, table)
             header, data, types = parseCSV(os.path.basename(self.path))
             if len(existing_columns) != len(header):
                 self._errors['file'] = self.error_class(["The number of columns in the CSV you selected does not match the number of columns in the table you selected"])
                 del cleaned_data['file']
+
+        if len(self._errors) == 0 and mode in [CSVUpload.DELETE]:
+            pks = getPrimaryKeysForTable(schema, table)
+            header, data, types = parseCSV(os.path.basename(self.path))
+            if len(pks) != len(header):
+                self._errors['file'] = self.error_class(['The number of columns in the CSV must match the number of primary keys in the table you selected'])
 
         return cleaned_data
 
@@ -115,9 +123,13 @@ class CSVPreviewForm(forms.Form):
             for i, column_name in enumerate(column_names):
                 self.fields['is_pk_%d' % (i, )] = forms.BooleanField(initial=False, required=False)
 
-        elif self.upload.mode == CSVUpload.APPEND:
-            existing_columns = getColumnsForTable(self.upload.schema, self.upload.table)
-            existing_column_names = [c['name'] for c in existing_columns]
+        elif self.upload.mode in [CSVUpload.APPEND, CSVUpload.UPSERT, CSVUpload.DELETE]:
+            if self.upload.mode == CSVUpload.DELETE:
+                existing_column_names = getPrimaryKeysForTable(self.upload.schema, self.upload.table)
+            else:
+                existing_columns = getColumnsForTable(self.upload.schema, self.upload.table)
+                existing_column_names = [c['name'] for c in existing_columns]
+
             choices = [(c, c) for c in existing_column_names]
             # add the field that lets the user select a column
             for i, csv_name in enumerate(column_names):
@@ -214,7 +226,7 @@ class CSVPreviewForm(forms.Form):
                     self._errors[k] = self.error_class(["Not a valid column name"])
                     cleaned_data.pop(k, None)
 
-        if self.upload.mode == CSVUpload.APPEND:
+        if self.upload.mode in [CSVUpload.APPEND, CSVUpload.UPSERT]:
             # make sure the column names match the existing table
             existing_columns = getColumnsForTable(self.upload.schema, self.upload.table)
             existing_column_names = [c['name'] for c in existing_columns]

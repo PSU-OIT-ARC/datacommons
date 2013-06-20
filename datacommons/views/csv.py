@@ -10,7 +10,7 @@ from django.db import DatabaseError
 from django.core.exceptions import PermissionDenied
 from ..uploader.csvhelpers import (
     handleUploadedCSV, 
-    insertCSVInto, 
+    importCSVInto, 
     parseCSV
 )
 from ..uploader.dbhelpers import (
@@ -121,24 +121,26 @@ def preview(request):
                 primary_keys = form.cleanedPrimaryKeyColumnNames()
                 try:
                     createTable(upload.schema, upload.table, column_names, column_types, primary_keys)
-                    insertCSVInto(
+                    importCSVInto(
                         upload.filename, 
                         upload.schema, 
                         upload.table, 
                         column_names, 
                         column_name_to_column_index=form.mapColumnNameToColumnIndex(),
+                        mode=upload.mode,
                         commit=True)
                 except DatabaseError as e:
                     error = str(e)
-            elif upload.mode == upload.APPEND:
+            elif upload.mode in [upload.APPEND, upload.UPSERT, upload.DELETE]:
                 # insert all the data
                 try:
-                    insertCSVInto(
+                    importCSVInto(
                         upload.filename, 
                         upload.schema, 
                         upload.table, 
                         form.cleanedColumnNames(), 
                         column_name_to_column_index=form.mapColumnNameToColumnIndex(),
+                        mode=upload.mode,
                         commit=True, 
                     )
                 except DatabaseError as e:

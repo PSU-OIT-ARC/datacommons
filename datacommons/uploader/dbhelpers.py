@@ -67,7 +67,54 @@ def getDatabaseMeta():
                     "type": type_id,
                     "type_label": ColumnTypes.toString(type_id),
                 })
+
+    # tack on the primary key info
+    pks = getPrimaryKeys()
+    for schema in pks:
+        for table in pks[schema]:
+            for col in meta.get(schema, {}).get(table, []):
+                col['pk'] = col['name'] in pks[schema][table]
+
     return meta
+
+def getPrimaryKeys():
+    """
+    Return a dict of dicts of sets where the keys are the schema name, the
+    table name, and the value is a set of columns which are the primary key of
+    `schema.table`
+    """
+    cursor = connection.cursor()
+    cursor.execute("""
+        SELECT 
+            tc.table_schema, 
+            tc.table_name, 
+            tc.constraint_type, 
+            column_name 
+        FROM 
+            information_schema.table_constraints as tc
+        INNER JOIN 
+            information_schema.key_column_usage as kcu 
+        ON 
+            tc.constraint_name = kcu.constraint_name
+            AND
+            tc.table_schema = kcu.table_schema
+            AND
+            tc.table_name = kcu.table_name
+        WHERE 
+            tc.constraint_type = 'PRIMARY KEY'
+    """)
+    data = defaultdict(lambda: defaultdict(set))
+    for row in cursor.fetchall(): 
+        schema, table, constraint_type, column_name = row
+        data[schema][table].add(column_name)
+
+    return data
+
+def getPrimaryKeysForTable(schema, table):
+    """
+    Returns a set of the column names in `schema.table` that are primary keys
+    """
+    return getPrimaryKeys()[schema][table]
 
 def getColumnsForTable(schema, table):
     """Return a list of columns in schema.table"""

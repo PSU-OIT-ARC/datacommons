@@ -68,7 +68,8 @@ class CSVUpload(models.Model):
     # mode
     CREATE = 1
     APPEND = 2
-    REPLACE = 3
+    UPSERT = 3
+    DELETE = 4
 
     # status
     DONE = 4
@@ -81,7 +82,12 @@ class CSVUpload(models.Model):
     table = models.CharField(max_length=255, null=True)
     name = models.CharField(max_length=255, default="")
     status = models.IntegerField(choices=((DONE, "Done"), (PENDING, "Pending")), default=PENDING)
-    mode = models.IntegerField(choices=((APPEND, "Append"), (CREATE, "Create")))
+    mode = models.IntegerField(choices=(
+        (APPEND, "Append"), 
+        (CREATE, "Create"),
+        (UPSERT, "Upsert"),
+        (DELETE, "Delete"),
+    ))
 
     user = models.ForeignKey(User, related_name='+', null=True, default=None)
 
