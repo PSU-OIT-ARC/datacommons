@@ -2,8 +2,8 @@
 {% block content %}
 <h2>Tables you own</h2>
 <ol>
-{% for tables in groups %}
-    <li>{{ tables.0.schema }}
+{% for schema, tables in groups.items %}
+    <li>{{ schema }}
         <ol>
         {% for table in tables %}
             <li><a href="{% url "schemas-view" table.schema table.name %}">{{ table }}</a>

@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.datastructures import SortedDict
 from django.contrib.auth.models import User
 from dochelpers import handleUploadedDoc
 
@@ -128,12 +129,9 @@ class DocUpload(models.Model):
 class TableManager(models.Manager):
     def groupedBySchema(self, owner):
         tables = Table.objects.filter(owner=owner).exclude(created_on=None)
-        results = []
+        results = SortedDict()
         for table in tables:
-            if len(results) == 0 or results[-1][0].schema != table.schema:
-                results.append([table])
-            else:
-                results[-1].append(table)
+            results.setdefault(table.schema, []).append(table)
 
         return results
 
