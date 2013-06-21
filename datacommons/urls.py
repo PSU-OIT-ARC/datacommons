@@ -1,5 +1,5 @@
 from django.conf.urls import patterns, include, url
-from .views import home, csv, doc
+from .views import home, csv, doc, schemas
 
 # Uncomment the next two lines to enable the admin:
 from django.contrib import admin
@@ -10,12 +10,16 @@ urlpatterns = patterns('',
     url(r'^$', home.index, name='home'),
     url(r'^csv/upload/?$', csv.upload, name='csv-upload'),
     url(r'^csv/preview/?$', csv.preview, name="csv-preview"),
-    url(r'^csv/?$', csv.all, name="csv-all"),
-    url(r'^csv/view/(.*)/(.*)/?$', csv.view, name="csv-view"),
-    # url(r'^datacommons/', include('datacommons.foo.urls')),
+
     url(r'^doc/upload/?$', doc.upload, name='doc-upload'),
     url(r'^doc/?$', doc.all, name='doc-all'),
     url(r'^doc/download/(\d+)?$', doc.download, name='doc-download'),
+
+    # schemas
+    url(r'^schemas/?$', schemas.all, name="schemas-all"),
+    url(r'^schemas/view/(.*)/(.*)/?$', schemas.view, name="schemas-view"),
+    url(r'^schema/permissions/?$', schemas.permissions, name="schemas-permissions"),
+
 
     # Uncomment the admin/doc line below to enable admin documentation:
     # url(r'^admin/doc/', include('django.contrib.admindocs.urls')),

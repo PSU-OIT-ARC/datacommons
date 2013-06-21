@@ -1,0 +1,19 @@
+{% extends "main.html" %}
+{% block content %}
+<h2>Schemas</h2>
+<ol>
+{% for schema, tables in schemas.items %}
+    <li>{{ schema }}
+        {% if tables|length > 0 %}
+            <ol>
+            {% for table, columns in tables.items %}
+                <li><a href="{% url "schemas-view" schema table %}">{{ table }}</a>
+            {% endfor %}
+            </ol>
+        {% else %}
+            (empty)
+        {% endif %}
+    </li>
+{% endfor %}
+</ol>
+{% endblock %}

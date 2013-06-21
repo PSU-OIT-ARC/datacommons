@@ -6,7 +6,8 @@
     <ul id="nav">
         {% if user.is_authenticated %}
             <li><a href="{% url "csv-upload" %}">Import a CSV</a></li>
-            <li><a href="{% url "csv-all" %}">Schema Browser</a></li>
+            <li><a href="{% url "schemas-all" %}">Schema Browser</a></li>
+            <li><a href="{% url "schemas-permissions" %}">Manage Permissions</a></li>
             <li><a href="{% url "doc-upload" %}">Upload a Document</a></li>
             <li><a href="{% url "doc-all" %}">Document Browser</a></li>
             <li><a href="{% url "django.contrib.auth.views.logout" %}">Logout</a></li>
@@ -16,8 +17,15 @@
 </div>
 
 <div id="content">
-    {% block content %}
-    {% endblock %}
+    {% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+        <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% block content %}{% endblock %}
 </div>
 
 <div id="footer">

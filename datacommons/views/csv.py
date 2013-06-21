@@ -8,59 +8,21 @@ from django.core.urlresolvers import reverse
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
 from django.core.exceptions import PermissionDenied
-from ..uploader.csvhelpers import (
+from django.contrib import messages
+from ..models.csvhelpers import (
     handleUploadedCSV, 
     importCSVInto, 
     parseCSV
 )
-from ..uploader.dbhelpers import (
+from ..models.dbhelpers import (
     isSaneName,
     fetchRowsFor,
     getDatabaseMeta,
     getColumnsForTable,
     createTable, 
 )
-from ..uploader.models import ColumnTypes, CSVUpload
-from ..uploader.forms import CSVUploadForm, CSVPreviewForm
-
-@login_required
-def all(request):
-    """Display a nested list of all the schemas and tables in the database"""
-    schemas = getDatabaseMeta()
-    return render(request, "csv/list.html", {
-        "schemas": schemas,
-    })
-
-@login_required
-def view(request, schema, table):
-    """View the table in schema, including the column names and types"""
-    # get all the data
-    rows, cols = fetchRowsFor(schema, table)
-
-    # was this CSV *just* modified/created by the user?
-    # if so, we will display a message on the template saying the change was successful
-    csv_id = request.session.get("csv_id", None)
-    upload = None
-    if csv_id:
-        upload = CSVUpload.objects.get(pk=csv_id)
-        # delete the session so the success message doesn't appear again
-        del request.session['csv_id']
-
-    # create a list of column names, and human readable type labels
-    # to display on the table header
-    cols = [
-    {
-        "name": t.name, 
-        "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code))
-    } for t in cols]
-
-    return render(request, "csv/view.html", {
-        "upload": upload,
-        "rows": rows,
-        "cols": cols,
-        "schema": schema,
-        "table": table,
-    })
+from ..models import ColumnTypes, CSVUpload
+from ..forms.csvs import CSVUploadForm, CSVPreviewForm
 
 @login_required
 def upload(request):
@@ -71,19 +33,8 @@ def upload(request):
         form = CSVUploadForm(request.POST, request.FILES)
         if form.is_valid():
             # save state and move to the preview
-            filename = os.path.basename(form.path)
-            r = CSVUpload()
-            r.filename = filename
-            r.schema = form.cleaned_data['schema']
-            r.table = form.cleaned_data['table']
-            r.mode = form.cleaned_data['mode']
-            r.user = request.user
-            r.name = "Nothing"
-            r.save()
-            return HttpResponseRedirect(reverse("csv-preview") + "?upload_id=" + str(r.pk))
-        else:
-            form.es = form._errors
-
+            row = form.save(user=request.user)
+            return HttpResponseRedirect(reverse("csv-preview") + "?upload_id=" + str(row.pk))
     else:
         form = CSVUploadForm()
 
@@ -111,48 +62,13 @@ def preview(request):
     if request.POST:
         form = CSVPreviewForm(request.POST, upload=upload)
         if form.is_valid():
-            if upload.mode == upload.CREATE: 
-                upload.table = form.cleaned_data['table']
-                upload.save()
-
-                # build the table and insert all the data
-                column_names = form.cleanedColumnNames()
-                column_types = form.cleanedColumnTypes()
-                primary_keys = form.cleanedPrimaryKeyColumnNames()
-                try:
-                    createTable(upload.schema, upload.table, column_names, column_types, primary_keys)
-                    importCSVInto(
-                        upload.filename, 
-                        upload.schema, 
-                        upload.table, 
-                        column_names, 
-                        column_name_to_column_index=form.mapColumnNameToColumnIndex(),
-                        mode=upload.mode,
-                        commit=True)
-                except DatabaseError as e:
-                    error = str(e)
-            elif upload.mode in [upload.APPEND, upload.UPSERT, upload.DELETE]:
-                # insert all the data
-                try:
-                    importCSVInto(
-                        upload.filename, 
-                        upload.schema, 
-                        upload.table, 
-                        form.cleanedColumnNames(), 
-                        column_name_to_column_index=form.mapColumnNameToColumnIndex(),
-                        mode=upload.mode,
-                        commit=True, 
-                    )
-                except DatabaseError as e:
-                    error = str(e)
-
-            if error == None:
-                upload.status = upload.DONE
-                upload.save()
-                # use a session var to indicate on the next page that the
-                # upload was successful
-                request.session['csv_id'] = upload.pk
-                return HttpResponseRedirect(reverse('csv-view', args=(upload.schema, upload.table)))
+            try:
+                form.save(upload)
+            except DatabaseError as e:
+                error = str(e)
+            else:
+                messages.success(request, "You successfully imported the CSV!")
+                return HttpResponseRedirect(reverse('schemas-view', args=(upload.table.schema, upload.table.name)))
     else:
         form = CSVPreviewForm(upload=upload)
 

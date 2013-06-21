@@ -5,7 +5,7 @@ from django.shortcuts import render, get_object_or_404
 from django.core.urlresolvers import reverse
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
-from ..uploader.forms import UserRegistrationForm
+from ..forms.accounts import UserRegistrationForm
 
 def index(request):
     if request.user.is_authenticated():

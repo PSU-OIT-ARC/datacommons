@@ -1,0 +1,61 @@
+{% extends "main.html" %}
+{% block content %}
+<h2>Tables you own</h2>
+<ol>
+{% for tables in groups %}
+    <li>{{ tables.0.schema }}
+        <ol>
+        {% for table in tables %}
+            <li><a href="{% url "schemas-view" table.schema table.name %}">{{ table }}</a>
+        {% endfor %}
+        </ol>
+    </li>
+{% endfor %}
+</ol>
+
+<h2>Grant/Revoke Permissions</h2>
+<table>
+    <tr>
+        <td>
+            <select name="grant">
+                <option>Grant</option>
+                <option>Revoke</option>
+            </select>
+        </td>
+        <td>
+            <select multiple>
+                <option>Insert</option>
+                <option>Update</option>
+                <option>Delete</option>
+            </select>
+        </td>
+        <td>
+            on
+        </td>
+        <td>
+            <select multiple>
+                <optgroup label="foobar">
+                    <option>alpha</option>
+                    <option>beta</option>
+                    <option>gamma</option>
+                </optgroup>
+                <optgroup label="foobar2">
+                    <option>delta</option>
+                    <option>epsilon</option>
+                    <option>zeta</option>
+                </optgroup>
+            </select>
+        </td>
+        <td>
+            to/from
+        </td>
+        <td>
+            <input type="text" name="users" value="" id="users" placeholder="Enter username" />
+            <input type="button" name="add" value="Add" id="add" />
+        </td>
+    </tr>
+</table>
+
+on 
+
+{% endblock %}
