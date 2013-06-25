@@ -1,15 +1,19 @@
+import json
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
 from django.core.urlresolvers import reverse
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
+from django.db.models import Q
 from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseMeta,
     getColumnsForTable,
 )
 from ..models import ColumnTypes, Table
+from ..forms.schemas import PermissionsForm
 
 @login_required
 def all(request):
@@ -42,7 +46,33 @@ def view(request, schema, table):
 @login_required
 def permissions(request):
     groups = Table.objects.groupedBySchema(owner=request.user)
+    form = PermissionsForm(user=request.user)
     
     return render(request, "schemas/permissions.html", {
         "groups": groups,
+        "form": form,
     })
+
+@login_required
+def users(request):
+    username = request.GET.get("term", "")
+    users = User.objects.filter(
+        Q(username__startswith=username) |
+        Q(first_name__startswith=username) |
+        Q(last_name__startswith=username)
+    )[:10]
+    return HttpResponse(json.dumps([{
+        "username": u.username,
+        "first_name": u.first_name,
+        "last_name": u.last_name,
+    } for u in users]))
+
+@login_required
+def grant(request):
+    form = PermissionsForm(request.POST, user=request.user)
+    if not form.is_valid():
+        response = {"errors": form.errors, "success": False}
+        return HttpResponse(json.dumps(response))
+
+    form.save()
+    return HttpResponse(json.dumps({"success": True}))

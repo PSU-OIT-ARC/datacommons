@@ -158,3 +158,28 @@ label {
     font-family:Courier, "Courier New", monospace;
     font-size:11px;
 }
+
+ul.nested-checkbox {
+    margin-left:0;
+    padding-left:0;
+    list-style-type:none;
+}
+
+.nested-checkbox ul {
+    list-style-type:none;
+    margin-left:0;
+    padding-left:0;
+}
+
+.nested-checkbox label {
+    margin-top:0px;
+    font-weight:normal;
+}
+
+.checkbox-group {
+    margin-top:0;
+}
+
+.checkbox-group-heading {
+    font-weight:bold;
+}
