@@ -1,3 +1,4 @@
+from collections import defaultdict
 from django.db import models
 from django.utils.datastructures import SortedDict
 from django.contrib.auth.models import User
@@ -152,20 +153,54 @@ class Table(models.Model):
     def __unicode__(self):
         return u'%s' % (self.name)
 
-    def canDo(self, user, permission_bit):
+    def canDo(self, user, permission_bit, perm):
         try:
-            p = TablePermission.objects.get(table=self, user=user)
+            if not perm:
+                perm = TablePermission.objects.get(table=self, user=user)
         except TablePermission.DoesNotExist:
             return False
 
-        return bool(p.permission & permission_bit)
+        return bool(perm.permission & permission_bit)
 
-    def canInsert(self, user):
-        self.canDo(user, TablePermission.INSERT)
-    def canUpdate(self, user):
-        self.canDo(user, TablePermission.UPDATE)
-    def canDelete(self, user):
-        self.canDo(user, TablePermission.DELETE)
+    def canInsert(self, user, perm=None):
+        return self.canDo(user, TablePermission.INSERT, perm)
+    def canUpdate(self, user, perm=None):
+        return self.canDo(user, TablePermission.UPDATE, perm)
+    def canDelete(self, user, perm=None):
+        return self.canDo(user, TablePermission.DELETE, perm)
+
+    def grant(self, user, perm_bit):
+        try:
+            perm = TablePermission.objects.get(table=self, user=user)
+        except TablePermission.DoesNotExist:
+            perm = TablePermission(table=self, user=user, permission=0)
+
+        perm.permission |= perm_bit
+        perm.save()
+
+    def revoke(self, user, perm_bit):
+        try:
+            perm = TablePermission.objects.get(table=self, user=user)
+        except TablePermission.DoesNotExist:
+            perm = TablePermission(table=self, user=user, permission=0)
+
+        perm.permission &= ~perm_bit
+        perm.save()
+
+        # if there are no permissions set, just delete the record
+        if perm.permission == 0:
+            perm.delete()
+
+    def permissionGrid(self):
+        perms = TablePermission.objects.filter(table=self).select_related("user")
+        rows = {}
+        for perm in perms:
+            item = rows.setdefault(perm.user, {})
+            item['can_insert'] = self.canInsert(perm.user, perm)
+            item['can_delete'] = self.canDelete(perm.user, perm)
+            item['can_update'] = self.canUpdate(perm.user, perm)
+
+        return rows
 
 class TablePermission(models.Model):
     # permissions need to be powers of 2 so we can do bitwise ANDs and ORs
@@ -180,3 +215,4 @@ class TablePermission(models.Model):
 
     class Meta:
         db_table = 'tablepermission'
+        unique_together = ("table", "user")

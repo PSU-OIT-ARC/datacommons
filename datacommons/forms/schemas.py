@@ -1,3 +1,4 @@
+from django.db import IntegrityError, transaction
 from django import forms
 from django.contrib.auth.models import User
 from ..models import TablePermission, Table
@@ -52,7 +53,7 @@ class PermissionsForm(forms.Form):
 
         for table in tables:
             for permission in permissions:
-                if option == self.GRANT:
-                    TablePermission(table=table, user=user, permission=permission).save()
-                elif option == self.REVOKE:
-                    TablePermission.objects.filter(table=table, user=user, permission=permission).delete()
+                if option == self.REVOKE:
+                    table.revoke(user, permission)
+                elif option == self.GRANT:
+                    table.grant(user, permission)

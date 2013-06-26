@@ -1,0 +1,24 @@
+{% extends "main.html" %}
+{% block content %}
+<h2>{{ table.schema }}.{{ table.name }}</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Insert</th>
+            <th>Update</th>
+            <th>Delete</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user, permss in grid.iteritems %}
+            <tr>
+                <td>{{ user.username }}</td>
+                <td>{{ permss.can_insert }}</td>
+                <td>{{ permss.can_update }}</td>
+                <td>{{ permss.can_delete }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

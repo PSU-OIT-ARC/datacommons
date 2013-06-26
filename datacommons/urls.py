@@ -21,6 +21,7 @@ urlpatterns = patterns('',
     url(r'^schema/permissions/?$', schemas.permissions, name="schemas-permissions"),
     url(r'^schema/users/?$', schemas.users, name="schemas-users"),
     url(r'^schema/grant/?$', schemas.grant, name="schemas-grant"),
+    url(r'^schema/permissions/(\d+)/?$', schemas.permissionsDetail, name="schemas-permissions-detail"),
 
 
     # Uncomment the admin/doc line below to enable admin documentation:

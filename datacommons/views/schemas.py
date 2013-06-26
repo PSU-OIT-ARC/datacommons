@@ -12,7 +12,7 @@ from ..models.dbhelpers import (
     getDatabaseMeta,
     getColumnsForTable,
 )
-from ..models import ColumnTypes, Table
+from ..models import ColumnTypes, Table, TablePermission
 from ..forms.schemas import PermissionsForm
 
 @login_required
@@ -52,6 +52,17 @@ def permissions(request):
         "groups": groups,
         "form": form,
     })
+
+
+@login_required
+def permissionsDetail(request, table_id):
+    user = request.user
+    table = get_object_or_404(Table, table_id=table_id, owner=user)
+    grid = table.permissionGrid()
+    return render(request, "schemas/permissions_detail.html", {
+        "table": table,
+        "grid": grid,
+    });
 
 @login_required
 def users(request):

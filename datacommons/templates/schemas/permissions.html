@@ -1,7 +1,24 @@
 {% extends "main.html" %}
 {% block content %}
 <script type="text/javascript">
+
 $(document).ready(function(){
+    bindAutoComplete();
+    $('#form').submit(onSubmit);
+    renderLinks();
+});
+
+function renderLinks(){
+    var url_base = "{% url 'schemas-permissions-detail' 0 %}";
+    $('input[name="tables"]').each(function(i, el){
+        var id = $(this).val();
+        var url = url_base.replace(/0$/, id);
+        $(this).parent().append(" <a href='" + url + "'>(edit)</a>");
+
+    });
+}
+
+function bindAutoComplete(){
     $('#id_user').autocomplete({
         source: function(request, response){
             $.getJSON("{% url 'schemas-users' %}", {term: request.term}, function(data){
@@ -17,21 +34,28 @@ $(document).ready(function(){
             });
         }
     });
+}
 
-    $('#add').click(function(){
-        clearErrors();
-        var form = $('#form').serialize();
-        $.post("{% url 'schemas-grant' %}", form, function(data){
-            var response = $.parseJSON(data);
-            console.log(response);
-            if(response.success){
-                console.log("Success")
-            } else {
-                showErrors(response.errors)
-            }
-        })
-    });
-});
+function onSubmit(){
+    $('#id_user').autocomplete("destroy");
+    clearErrors();
+    var form = $('#form').serialize();
+    $.post("{% url 'schemas-grant' %}", form, function(data){
+        var response = $.parseJSON(data);
+        console.log(response);
+        autocomplete_enabled = true;
+        if(response.success){
+            $('#id_user').val("")
+            $('#id_user').select().focus()
+            $('#success-message').show().fadeOut(1500)
+        } else {
+            showErrors(response.errors)
+        }
+        bindAutoComplete();
+    })
+
+    return false;
+}
 
 function clearErrors(){
     $('.permissions-errors').each(function(){ $(this).html(""); })
@@ -50,47 +74,46 @@ function showErrors(errors){
 }
 
 </script>
-<h2>Tables you own</h2>
-<ol>
-{% for schema, tables in groups.items %}
-    <li>{{ schema }}
-        <ol>
-        {% for table in tables %}
-            <li><a href="{% url "schemas-view" table.schema table.name %}">{{ table }}</a>
-        {% endfor %}
-        </ol>
-    </li>
-{% endfor %}
-</ol>
 
 <form action="" method="post" id="form" >
 {% csrf_token %}
 <h2>Grant/Revoke Permissions</h2>
-<table>
+<div>
+    <span id="success-message" class="success">Permissions granted/revoked successfully!</span>
+    &nbsp; 
+</div>
+<table id="permissions-table">
     <tr>
-        <td>
+        <td style="width:100px" class="permission-cell">
             <div class="permissions-errors" id="errors_{{ form.option.html_name }}"></div>
             {{ form.option }}
         </td>
-        <td>
+        <td style="width:100px" class="permission-cell">
             <div class="permissions-errors" id="errors_{{ form.permissions.html_name }}"></div>
             {{ form.permissions }}
         </td>
-        <td>
+        <td style="width:30px; text-align:center" class="permission-cell">
             on
         </td>
-        <td>
+        <td rowspan="2" style="width:150px; text-align:left" class="permission-cell">
             <div class="permissions-errors" id="errors_{{ form.tables.html_name }}"></div>
             {{ form.tables }}
         </td>
-        <td>
+        <td style="width:50px; text-align:center" class="permission-cell">
             to/from
         </td>
-        <td>
+        <td class="permission-cell">
             <div class="permissions-errors" id="errors_{{ form.user.html_name }}"></div>
             {{ form.user }}
-            <input type="button" name="add" value="Add" id="add" />
+            <input type="submit" name="add" value="Apply" id="add" />
         </td>
+    </tr>
+    <tr>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
     </tr>
 </table>
 

@@ -183,3 +183,25 @@ ul.nested-checkbox {
 .checkbox-group-heading {
     font-weight:bold;
 }
+
+.permissions-errors {
+    color:#ff0000;
+}
+
+#permissions-table {
+    border-spacing:0;
+}
+
+#permissions-table td.permission-cell {
+    background-color:#e2e2e2;
+    text-align:center;
+    border:none;
+}
+
+#permissions-table tr:last-child td {
+    border:none;
+}
+
+#success-message {
+    display:none;
+}
