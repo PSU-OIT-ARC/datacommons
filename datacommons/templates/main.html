@@ -10,6 +10,9 @@
             <li><a href="{% url "schemas-permissions" %}">Manage Permissions</a></li>
             <li><a href="{% url "doc-upload" %}">Upload a Document</a></li>
             <li><a href="{% url "doc-all" %}">Document Browser</a></li>
+            {% if user.is_staff or user.is_admin %}
+                <li><a href="{% url "schemas-create" %}">Create Schema</a></li>
+            {% endif %}
             <li><a href="{% url "django.contrib.auth.views.logout" %}">Logout</a></li>
         {% endif %}
     </ul>

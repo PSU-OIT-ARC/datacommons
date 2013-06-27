@@ -13,7 +13,7 @@ from ..models.dbhelpers import (
     getColumnsForTable,
 )
 from ..models import ColumnTypes, Table, TablePermission
-from ..forms.schemas import PermissionsForm, TablePermissionsForm
+from ..forms.schemas import PermissionsForm, TablePermissionsForm, CreateSchemaForm
 
 @login_required
 def all(request):
@@ -41,6 +41,25 @@ def view(request, schema, table):
         "cols": cols,
         "schema": schema,
         "table": table,
+    })
+
+@login_required
+def create(request):
+    # make sure the user has permissions to do the creation
+    if not any([request.user.is_authenticated, request.user.is_staff]):
+        raise PermissionDenied()
+
+    if request.POST:
+        form = CreateSchemaForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Schema Created!")
+            return HttpResponseRedirect(reverse("schemas-create"))
+    else:
+        form = CreateSchemaForm()
+
+    return render(request, "schemas/create.html", {
+        'form': form,
     })
 
 @login_required

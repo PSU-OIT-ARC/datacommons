@@ -2,6 +2,7 @@ from django.db import IntegrityError, transaction
 from django import forms
 from django.contrib.auth.models import User
 from ..models import TablePermission, Table
+from ..models.dbhelpers import getDatabaseMeta, isSaneName, createSchema
 import widgets
 
 class PermissionsForm(forms.Form):
@@ -97,3 +98,22 @@ class TablePermissionsForm(forms.Form):
                         self.table.grant(user, getattr(TablePermission, action.upper()))
                     else:
                         self.table.revoke(user, getattr(TablePermission, action.upper()))
+
+class CreateSchemaForm(forms.Form):
+    name = forms.CharField(max_length=255)
+
+    def clean_name(self):
+        meta = getDatabaseMeta()
+        name = self.cleaned_data['name']
+        if name in meta:
+            raise forms.ValidationError("That schema name already exists!")
+
+        if not isSaneName(name):
+            raise forms.ValidationError("That schema name contains invalid characters")
+
+        return name
+
+    def save(self):
+        name = self.cleaned_data['name']
+        print name
+        createSchema(name)

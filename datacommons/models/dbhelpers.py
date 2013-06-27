@@ -121,6 +121,19 @@ def getColumnsForTable(schema, table):
     meta = getDatabaseMeta()
     return meta[schema][table]
 
+def createSchema(name):
+    name = sanitize(name)
+    cursor = connection.cursor()
+    # we aren't using the second parameter to execute() to pass the name in
+    # because we already (hopefully) escaped the input
+    cursor.execute("CREATE SCHEMA %s" % name)
+
+    # use the stored proc created by mharvey to setup the proper perms on the
+    # table
+    cursor.execute("SELECT dc_set_perms(%s);", (name,))
+
+    transaction.commit_unless_managed()
+
 def createTable(table, column_names, column_types, primary_keys, commit=False):
     """Create a table in `table.schema` named `table.name`, with columns named
     column_names, with types column_types."""
