@@ -153,7 +153,11 @@ class Table(models.Model):
     def __unicode__(self):
         return u'%s' % (self.name)
 
-    def canDo(self, user, permission_bit, perm):
+    def canDo(self, user, permission_bit, perm=None):
+        # owner can always do stuff
+        if self.owner == user:
+            return True
+
         try:
             if not perm:
                 perm = TablePermission.objects.get(table=self, user=user)
@@ -197,8 +201,8 @@ class Table(models.Model):
         for perm in perms:
             item = rows.setdefault(perm.user, {})
             item['can_insert'] = self.canInsert(perm.user, perm)
-            item['can_delete'] = self.canDelete(perm.user, perm)
             item['can_update'] = self.canUpdate(perm.user, perm)
+            item['can_delete'] = self.canDelete(perm.user, perm)
 
         return rows
 

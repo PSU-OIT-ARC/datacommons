@@ -30,13 +30,13 @@ def upload(request):
     schemas = getDatabaseMeta()
     errors = {}
     if request.POST:
-        form = CSVUploadForm(request.POST, request.FILES)
+        form = CSVUploadForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             # save state and move to the preview
-            row = form.save(user=request.user)
+            row = form.save()
             return HttpResponseRedirect(reverse("csv-preview") + "?upload_id=" + str(row.pk))
     else:
-        form = CSVUploadForm()
+        form = CSVUploadForm(user=request.user)
 
     schemas_json = json.dumps(schemas)
     return render(request, 'csv/upload.html', {
@@ -76,7 +76,7 @@ def preview(request):
     column_names, data, column_types = parseCSV(upload.filename)
     # grab the columns from the existing table
     if upload.mode == CSVUpload.APPEND:
-        existing_columns = getColumnsForTable(upload.schema, upload.table)
+        existing_columns = getColumnsForTable(upload.table.schema, upload.table.name)
     else:
         existing_columns = None
 

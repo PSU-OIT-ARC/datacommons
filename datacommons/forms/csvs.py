@@ -22,9 +22,11 @@ class CSVUploadForm(forms.Form):
     file = forms.FileField(label="Upload a CSV")
 
     def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+
         super(CSVUploadForm, self).__init__(*args, **kwargs)
 
-        # get all the schemas from the db
+        # get all the schemas from the db, and set the choices for schemas and tables
         self.db_meta = getDatabaseMeta()
         self.fields['schema'].choices = [("", "")] + [(name, name) for name in self.db_meta]
         tables = [("", "")]
@@ -34,21 +36,14 @@ class CSVUploadForm(forms.Form):
                     tables.append((name, name))
         self.fields['table'].choices = tables
 
-    def clean_schema(self):
-        schema = self.cleaned_data['schema']
-        if schema == "":
-            raise forms.ValidationError("Select a schema!")
-        
-        return schema
-
     def clean_file(self):
-        # attempt an upload
         file = self.cleaned_data["file"]
         self.path = None
 
         if not file:
             return None
 
+        # attempt an upload
         try:
             self.path = handleUploadedCSV(file)
         except TypeError as e:
@@ -62,37 +57,96 @@ class CSVUploadForm(forms.Form):
 
         return file
 
-    def clean(self):
-        cleaned_data = super(CSVUploadForm, self).clean()
-        # check if the table they chose exists (in append mode)
+    def validate_table_choice(self, cleaned_data):
+        # check if the table they chose exists
         mode = cleaned_data.get("mode", 0)
         table = cleaned_data.get("table", "")
         schema = cleaned_data.get("schema", "")
-        if mode in [CSVUpload.APPEND, CSVUpload.UPSERT, CSVUpload.DELETE]:
-            if schema in self.db_meta and table not in self.db_meta[schema]:
-                self._errors['table'] = self.error_class(['Choose a table!'])
-                # make sure the error message is displayed by removing it from
-                # cleaned_data
-                cleaned_data.pop('table', None)
+        # only applies to these modes
+        if mode not in [CSVUpload.APPEND, CSVUpload.UPSERT, CSVUpload.DELETE]:
+            return
 
-        # if the upload was successful, and the mode is append, make sure there
-        # are the right amount of columns
-        if len(self._errors) == 0 and mode in [CSVUpload.APPEND, CSVUpload.UPSERT]:
-            existing_columns = getColumnsForTable(schema, table)
-            header, data, types = parseCSV(os.path.basename(self.path))
-            if len(existing_columns) != len(header):
-                self._errors['file'] = self.error_class(["The number of columns in the CSV you selected does not match the number of columns in the table you selected"])
-                del cleaned_data['file']
+        if schema in self.db_meta and table not in self.db_meta[schema]:
+            self._errors.setdefault("table", self.error_class).append('Choose a table!')
+            # make sure the error message is displayed by removing it from
+            # cleaned_data
+            cleaned_data.pop('table', None)
 
+    def validate_permissions(self, cleaned_data):
+        # check permissions
+        mode = cleaned_data.get("mode", 0)
+        table = cleaned_data.get("table", "")
+        schema = cleaned_data.get("schema", "")
+        # only applies to these modes
+        if mode not in [CSVUpload.APPEND, CSVUpload.UPSERT, CSVUpload.DELETE]:
+            return
+
+        try:
+            table_obj = Table.objects.get(schema=schema, name=table)
+        except Table.DoesNotExist:
+            # the table doesn't exist in our database, so we don't know what
+            # the permissions on it are supposed to be
+            self._errors.setdefault("table", self.error_class()).append("That table was created outside of datacommons, and cannot be modified")
+            cleaned_data.pop('table', None)
+            # no need to continue validating
+            return
+
+        # can the user insert?
+        if mode in [CSVUpload.APPEND, CSVUpload.UPSERT] and not table_obj.canInsert(self.user):
+            self._errors.setdefault("table", self.error_class()).append('You do not have permission to insert into that table!')
+            cleaned_data.pop('table', None)
+
+        # can the user update?
+        if mode == CSVUpload.UPSERT and not table_obj.canUpdate(self.user):
+            self._errors.setdefault("table", self.error_class()).append('You do not have permission to update rows in that table!')
+            cleaned_data.pop('table', None)
+
+        # can the user delete?
+        if mode == CSVUpload.DELETE and not table_obj.canDelete(self.user):
+            self._errors.setdefault("table", self.error_class()).append('You do not have permission to delete rows in that table!')
+            cleaned_data.pop('table', None)
+
+    def validate_number_of_columns(self, cleaned_data):
+        # make sure the uploaded CSV has the right number of columns in APPEND
+        # or UPSERT mode
+        mode = cleaned_data.get("mode", 0)
+        table = cleaned_data.get("table", "")
+        schema = cleaned_data.get("schema", "")
+        # don't do any validation if there are already errors, or if we're not
+        # in the right mode
+        if len(self._errors) != 0 or mode not in [CSVUpload.APPEND, CSVUpload.UPSERT]:
+            return
+
+        # compare the number of columns in the table, and the csv
+        existing_columns = getColumnsForTable(schema, table)
+        header, data, types = parseCSV(os.path.basename(self.path))
+        if len(existing_columns) != len(header):
+            self._errors['file'] = self.error_class(["The number of columns in the CSV you selected does not match the number of columns in the table you selected"])
+            del cleaned_data['file']
+
+    def validate_number_of_primary_keys(self, cleaned_data):
+        # if in delete mode, make sure the number of columns in the CSV
+        # match the number of PK columns
+        mode = cleaned_data.get("mode", 0)
+        table = cleaned_data.get("table", "")
+        schema = cleaned_data.get("schema", "")
         if len(self._errors) == 0 and mode in [CSVUpload.DELETE]:
             pks = getPrimaryKeysForTable(schema, table)
             header, data, types = parseCSV(os.path.basename(self.path))
             if len(pks) != len(header):
                 self._errors['file'] = self.error_class(['The number of columns in the CSV must match the number of primary keys in the table you selected'])
 
+    def clean(self):
+        cleaned_data = super(CSVUploadForm, self).clean()
+
+        self.validate_table_choice(cleaned_data)
+        self.validate_permissions(cleaned_data)
+        self.validate_number_of_columns(cleaned_data)
+        self.validate_number_of_primary_keys(cleaned_data)
+
         return cleaned_data
 
-    def save(self, user):
+    def save(self):
         """
         Create the CSVUpload object, and add or attach the
         corresponding table object
@@ -101,29 +155,19 @@ class CSVUploadForm(forms.Form):
         r = CSVUpload()
         r.filename = filename
         r.mode = self.cleaned_data['mode']
-        r.user = user
+        r.user = self.user
 
-        create_table_object = True
-        owner = user
+        owner = self.user
 
         if r.mode != CSVUpload.CREATE:
             # find the table object, and tack it onto the
             # CSVUpload object
-            try:
-                r.table = Table.objects.get(
-                    name=self.cleaned_data['table'],
-                    schema=self.cleaned_data['schema'],
-                )
-                create_table_object = False
-            except Table.DoesNotExist as e:
-                # this means the actual table was created
-                # outside the application. We need to add the
-                # table row into the Table table (that sounds
-                # confusing). The owner of the table will be
-                # the user with the lowest user_id
-                owner = User.objects.all().order_by("pk")[0]
-
-        if create_table_object:
+            r.table = Table.objects.get(
+                name=self.cleaned_data['table'],
+                schema=self.cleaned_data['schema'],
+            )
+        else:
+            # create the table
             t = Table(
                 schema=self.cleaned_data['schema'],
                 name=self.cleaned_data['table'],
@@ -167,9 +211,9 @@ class CSVPreviewForm(forms.Form):
 
         elif self.upload.mode in [CSVUpload.APPEND, CSVUpload.UPSERT, CSVUpload.DELETE]:
             if self.upload.mode == CSVUpload.DELETE:
-                existing_column_names = getPrimaryKeysForTable(self.upload.schema, self.upload.table)
+                existing_column_names = getPrimaryKeysForTable(self.upload.table.schema, self.upload.table.name)
             else:
-                existing_columns = getColumnsForTable(self.upload.schema, self.upload.table)
+                existing_columns = getColumnsForTable(self.upload.table.schema, self.upload.table.name)
                 existing_column_names = [c['name'] for c in existing_columns]
 
             choices = [(c, c) for c in existing_column_names]
@@ -183,7 +227,7 @@ class CSVPreviewForm(forms.Form):
                 if csv_name in existing_column_names:
                     params['initial'] = csv_name
 
-                self.fields['column_name_%d' % (i, )] = forms.ChoiceField(**params)
+                self.fields['column_name_%d' % i] = forms.ChoiceField(**params)
 
     def clean_table(self):
         """Validate the table name; only applies to create mode"""
@@ -219,7 +263,7 @@ class CSVPreviewForm(forms.Form):
         return fields
 
     def cleanedPrimaryKeyColumnNames(self):
-        """Return a list of booleans indicating if the field is a pk"""
+        """Return a list of the names of the pk fields"""
         data = []
         index = 0
         for k, v in self.fields.items():
@@ -270,7 +314,7 @@ class CSVPreviewForm(forms.Form):
 
         if self.upload.mode in [CSVUpload.APPEND, CSVUpload.UPSERT]:
             # make sure the column names match the existing table
-            existing_columns = getColumnsForTable(self.upload.schema, self.upload.table)
+            existing_columns = getColumnsForTable(self.upload.table.schema, self.upload.table.name)
             existing_column_names = [c['name'] for c in existing_columns]
             if set(existing_column_names) != set(names):
                 raise forms.ValidationError("The columns must match the existing table")

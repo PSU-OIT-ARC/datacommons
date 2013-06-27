@@ -13,7 +13,7 @@ from ..models.dbhelpers import (
     getColumnsForTable,
 )
 from ..models import ColumnTypes, Table, TablePermission
-from ..forms.schemas import PermissionsForm
+from ..forms.schemas import PermissionsForm, TablePermissionsForm
 
 @login_required
 def all(request):
@@ -58,10 +58,17 @@ def permissions(request):
 def permissionsDetail(request, table_id):
     user = request.user
     table = get_object_or_404(Table, table_id=table_id, owner=user)
-    grid = table.permissionGrid()
+    if request.POST:
+        form = TablePermissionsForm(request.POST, table=table)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Permissions updated")
+            return HttpResponseRedirect(reverse("schemas-permissions-detail", args=(table.pk,)))
+    else:
+        form = TablePermissionsForm(table=table)
     return render(request, "schemas/permissions_detail.html", {
         "table": table,
-        "grid": grid,
+        "form": form,
     });
 
 @login_required

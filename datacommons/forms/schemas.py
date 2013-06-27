@@ -57,3 +57,43 @@ class PermissionsForm(forms.Form):
                     table.revoke(user, permission)
                 elif option == self.GRANT:
                     table.grant(user, permission)
+
+class TablePermissionsForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        self.table = kwargs.pop("table")
+        super(TablePermissionsForm, self).__init__(*args, **kwargs)
+
+        self.grid = self.table.permissionGrid()
+        for user, perm_list in self.grid.items():
+            self.fields['user_%d_can_insert' % user.pk] = forms.BooleanField(initial=perm_list['can_insert'], required=False)
+            self.fields['user_%d_can_update' % user.pk] = forms.BooleanField(initial=perm_list['can_update'], required=False)
+            self.fields['user_%d_can_delete' % user.pk] = forms.BooleanField(initial=perm_list['can_delete'], required=False)
+
+    def fieldIter(self):
+        for user, perm_list in self.grid.items():
+            yield (
+                user, 
+                self['user_%d_can_insert' % user.pk],
+                self['user_%d_can_update' % user.pk],
+                self['user_%d_can_delete' % user.pk],
+            )
+
+    def save(self):
+        # for each user who has permissions on this table
+        for user, perm_list in self.grid.items():
+            # for each type of permission
+            for action in ["insert", "update", "delete"]:
+                # check if the checkbox was checked for this permission type
+                new_perm = self.cleaned_data.get("user_%d_can_%s" % (user.pk, action), False)
+                # see what the old value was for this permission type
+                old_perm = perm_list["can_%s" % action]
+                # if they differ, we need to update the DB
+                if new_perm != old_perm:
+                    # we know the TablePermission class has constants called
+                    # INSERT, UPDATE and DELETE, so we convert the permission
+                    # name to upper case, and pass that to the grant/revoke
+                    # functions
+                    if new_perm:
+                        self.table.grant(user, getattr(TablePermission, action.upper()))
+                    else:
+                        self.table.revoke(user, getattr(TablePermission, action.upper()))

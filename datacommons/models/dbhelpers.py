@@ -122,9 +122,8 @@ def getColumnsForTable(schema, table):
     return meta[schema][table]
 
 def createTable(table, column_names, column_types, primary_keys, commit=False):
-    """Create a table in schema_name named table_name, with columns named
-    column_names, with types column_types. Automatically creates a primary
-    key for the table"""
+    """Create a table in `table.schema` named `table.name`, with columns named
+    column_names, with types column_types."""
     # santize all the names
     schema_name = sanitize(table.schema)
     table_name = sanitize(table.name)
