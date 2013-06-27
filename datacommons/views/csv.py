@@ -9,17 +9,10 @@ from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
-from ..models.csvhelpers import (
-    handleUploadedCSV, 
-    importCSVInto, 
-    parseCSV
-)
+from ..models.csvhelpers import parseCSV
 from ..models.dbhelpers import (
-    isSaneName,
-    fetchRowsFor,
     getDatabaseMeta,
     getColumnsForTable,
-    createTable, 
 )
 from ..models import ColumnTypes, CSVUpload
 from ..forms.csvs import CSVUploadForm, CSVPreviewForm

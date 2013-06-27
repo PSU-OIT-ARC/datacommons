@@ -189,6 +189,6 @@ def fetchRowsFor(schema, table):
     schema = sanitize(schema)
     table = sanitize(table)
     cursor = connection.cursor()
-    cursor.execute("""SELECT * FROM "%s"."%s\"""" % (schema, table))
+    cursor.execute('''SELECT * FROM "%s"."%s"''' % (schema, table))
     return cursor.fetchall(), cursor.description
 

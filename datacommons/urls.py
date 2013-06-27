@@ -1,5 +1,5 @@
 from django.conf.urls import patterns, include, url
-from .views import home, csv, doc, schemas
+from .views import home, csv, doc, schemas, api
 
 # Uncomment the next two lines to enable the admin:
 from django.contrib import admin
@@ -22,7 +22,10 @@ urlpatterns = patterns('',
     url(r'^schema/users/?$', schemas.users, name="schemas-users"),
     url(r'^schema/grant/?$', schemas.grant, name="schemas-grant"),
     url(r'^schema/permissions/(\d+)/?$', schemas.permissionsDetail, name="schemas-permissions-detail"),
-    url(r'^schemas/create?$', schemas.create, name="schemas-create"),
+    url(r'^schemas/create/?$', schemas.create, name="schemas-create"),
+
+    # api
+    url(r'^api/schemas/(.*)/tables/(.*)\.(.*)$', api.view, name="api-schemas"),
 
 
     # Uncomment the admin/doc line below to enable admin documentation:
@@ -30,7 +33,6 @@ urlpatterns = patterns('',
 
     # Uncomment the next line to enable the admin:
     url(r'^admin/', include(admin.site.urls)),
-
 
     # registration
     url(r'^register/?$', home.register, name="register"),
