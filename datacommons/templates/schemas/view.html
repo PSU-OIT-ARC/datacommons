@@ -1,6 +1,8 @@
 {% extends "main.html" %}
 {% block content %}
 <h2>{{ schema }}.{{ table }}</h2>
+<p><strong>Export:</strong> <a href="{% url "api-schemas-tables" schema table 'csv' %}">CSV</a> | 
+<a href="{% url "api-schemas-tables" schema table 'json' %}">JSON</a></p>
 
 <table id="preview">
     <thead>

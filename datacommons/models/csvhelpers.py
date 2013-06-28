@@ -36,7 +36,7 @@ def parseCSV(filename):
 
     header = [sanitize(c) for c in rows[0]]
     data = rows[1:]
-    types = inferColumnTypes(data)
+    types = _inferColumnTypes(data)
     return header, data, types
 
 def handleUploadedCSV(f):
@@ -114,52 +114,53 @@ def _doSQL(sql, params, exception_operation, exception_line):
             (exception_operation, exception_line, str(e), connection.queries[-1]['sql'])) 
 
 # helpers for parseCsv
-def inferColumnType(data):
+def _isValidValueAsPGType(value, type):
+    pg_type = ColumnTypes.toPGType(type)
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""SELECT %%s::%s""" % (pg_type), (value,))
+    except DatabaseError as e:
+        connection._rollback()
+        return False
+
+    # if we're checking for a timestamp with a timezone, we need to figure out
+    # if it *actually* has a timezone component, since postgres unfortunately
+    # assumes UTC when a timezone is not present
+    if type == ColumnTypes.TIMESTAMP_WITH_ZONE:
+        timestamp_pg_type = ColumnTypes.toPGType(ColumnTypes.TIMESTAMP)
+        # compare the value as a TIMESTAMP WITH TIME ZONE and a TIMEZONE. If they
+        # are equal, then this value does *not* have a useful timezone
+        # component
+        cursor.execute("""SELECT %%s::%s = %%s::%s""" % (pg_type, timestamp_pg_type), (value, value))
+        if cursor.fetchone()[0]:
+            return False
+
+    return True
+
+def _inferColumnType(data):
     # try to deduce the column type
-    # int?
+    # this must be ordered from most strict type to least strict type
+    is_valid_as_type = [
+        ColumnTypes.TIMESTAMP_WITH_ZONE,
+        ColumnTypes.TIMESTAMP,
+        ColumnTypes.INTEGER,
+        ColumnTypes.NUMERIC,
+        ColumnTypes.CHAR,
+    ]
+
+    # for each data item, for each type, check if that data item is an
+    # acceptable value for that type
     for val in data:
-        try:
-            val = int(val)
-            # http://www.postgresql.org/docs/8.2/static/datatype-numeric.html
-            # is the value too big (positive or negative) for postgres?
-            if val < -2147483648 or val > +2147483647:
-                raise ValueError('Too big')
-        except ValueError:
-            break
-    else:
-        return ColumnTypes.INTEGER
+        is_valid_as_type = [type for type in is_valid_as_type if _isValidValueAsPGType(val, type)]
 
-    # float?
-    for val in data:
-        try:
-            float(val)
-        except ValueError:
-            break
-    else:
-        return ColumnTypes.NUMERIC
+    return is_valid_as_type[0]
 
-    # is timestamp?
-    for val in data:
-        # timestamps only will contain these chars
-        if not re.search(r'^[+: 0-9-]+$', val):
-            break
-    else:
-        # if the value is longer than "2012-05-05 08:01:01" it probably
-        # has a timezone appended to the end
-        if len(data[0]) > len("2012-05-05 08:01:01"):
-            return ColumnTypes.TIMESTAMP_WITH_ZONE
-        else:
-            return ColumnTypes.TIMESTAMP
-
-    # nothing special
-    return ColumnTypes.CHAR
-
-def inferColumnTypes(rows):
+def _inferColumnTypes(rows):
     types = []
     number_of_columns = len(rows[0])
     for column_index in range(number_of_columns):
         data = []
         for row_index in range(len(rows)):
             data.append(rows[row_index][column_index])
-        types.append(inferColumnType(data))
+        types.append(_inferColumnType(data))
     return types

@@ -2,6 +2,7 @@ import decimal
 import os
 import re
 import json
+from datacommons.jsonencoder import JSONEncoder
 from datacommons.unicodecsv import UnicodeWriter
 from django.conf import settings as SETTINGS
 from django.http import HttpResponse, HttpResponseRedirect
@@ -32,10 +33,3 @@ def view(request, schema, table, format):
 
     return response 
 
-# since Python's default JSONEncoder doesn't handle decimal types, we have to
-# add support for that on our own
-class JSONEncoder(json.JSONEncoder):
-    def _iterencode(self, o, *args, **kwargs):
-        if isinstance(o, decimal.Decimal):
-            return (str(o),)
-        return super(JSONEncoder, self)._iterencode(o, *args, **kwargs)

@@ -7,7 +7,10 @@
         {% if tables|length > 0 %}
             <ol>
             {% for table, columns in tables.items %}
-                <li><a href="{% url "schemas-view" schema table %}">{{ table }}</a>
+                <li>
+                    <a href="{% url "schemas-view" schema table %}">{{ table }}</a>
+                    <a href="{% url "api-schemas-tables" schema table 'csv' %}">(csv)</a>
+                </li>
             {% endfor %}
             </ol>
         {% else %}
