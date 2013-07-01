@@ -1,4 +1,5 @@
 Django==1.5.1
 psycopg2==2.4.6
+pyshp==1.1.7
 pytz==2012j
 wsgiref==0.1.2
