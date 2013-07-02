@@ -3,7 +3,7 @@ import os
 import re
 from collections import defaultdict
 from django.conf import settings as SETTINGS
-from django.db import connection, transaction
+from django.db import connection, transaction, DatabaseError
 from .models import ColumnTypes
 
 def isSaneName(value):
@@ -191,4 +191,59 @@ def fetchRowsFor(schema, table):
     cursor = connection.cursor()
     cursor.execute('''SELECT * FROM "%s"."%s"''' % (schema, table))
     return cursor.fetchall(), cursor.description
+
+def inferColumnTypes(rows):
+    """`rows` is a list of lists (i.e. a table). For each column in the table,
+    determine the appropriate postgres datatype for that column. Return a list
+    of ColumnTypes enums where the first item in the list corrsponds to the
+    datatype of the first column in the table"""
+    types = []
+    number_of_columns = len(rows[0])
+    for column_index in range(number_of_columns):
+        data = []
+        for row_index in range(len(rows)):
+            data.append(rows[row_index][column_index])
+        types.append(_inferColumnType(data))
+    return types
+
+def _inferColumnType(data):
+    # try to deduce the column type
+    # this must be ordered from most strict type to least strict type
+    is_valid_as_type = [
+        ColumnTypes.TIMESTAMP_WITH_ZONE,
+        ColumnTypes.TIMESTAMP,
+        ColumnTypes.INTEGER,
+        ColumnTypes.NUMERIC,
+        ColumnTypes.CHAR,
+    ]
+
+    # for each data item, for each type, check if that data item is an
+    # acceptable value for that type
+    for val in data:
+        is_valid_as_type = [type for type in is_valid_as_type if _isValidValueAsPGType(val, type)]
+
+    return is_valid_as_type[0]
+
+def _isValidValueAsPGType(value, type):
+    pg_type = ColumnTypes.toPGType(type)
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""SELECT %%s::%s""" % (pg_type), (value,))
+    except DatabaseError as e:
+        connection._rollback()
+        return False
+
+    # if we're checking for a timestamp with a timezone, we need to figure out
+    # if it *actually* has a timezone component, since postgres unfortunately
+    # assumes UTC when a timezone is not present
+    if type == ColumnTypes.TIMESTAMP_WITH_ZONE:
+        timestamp_pg_type = ColumnTypes.toPGType(ColumnTypes.TIMESTAMP)
+        # compare the value as a TIMESTAMP WITH TIME ZONE and a TIMEZONE. If they
+        # are equal, then this value does *not* have a useful timezone
+        # component
+        cursor.execute("""SELECT %%s::%s = %%s::%s""" % (pg_type, timestamp_pg_type), (value, value))
+        if cursor.fetchone()[0]:
+            return False
+
+    return True
 

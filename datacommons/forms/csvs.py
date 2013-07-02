@@ -4,7 +4,7 @@ from django import forms
 from django.forms.widgets import RadioSelect
 from django.db import DatabaseError
 from ..models import CSVUpload, ColumnTypes, Table
-from ..models.csvhelpers import handleUploadedCSV, parseCSV, importCSVInto
+from ..models.importable import ShapefileImport as CSVImport
 from ..models.dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable, createTable, getDatabaseMeta
 
 class CSVUploadForm(forms.Form):
@@ -38,20 +38,20 @@ class CSVUploadForm(forms.Form):
 
     def clean_file(self):
         file = self.cleaned_data["file"]
-        self.path = None
+        self.importable = None
 
         if not file:
             return None
 
-        # attempt an upload
         try:
-            self.path = handleUploadedCSV(file)
+            # attempt an upload
+            self.importable = CSVImport.upload(file)
         except TypeError as e:
             raise forms.ValidationError(str(e))
 
         # try to parse it
         try:
-            parseCSV(os.path.basename(self.path))
+            self.importable.parse()
         except UnicodeDecodeError as e:
             raise forms.ValidationError("The file has corrupt characters on line %d. Edit the file and remove or replace the invalid characters" % (e.line))
 
@@ -119,7 +119,7 @@ class CSVUploadForm(forms.Form):
 
         # compare the number of columns in the table, and the csv
         existing_columns = getColumnsForTable(schema, table)
-        header, data, types = parseCSV(os.path.basename(self.path))
+        header, data, types = self.importable.parse()
         if len(existing_columns) != len(header):
             self._errors['file'] = self.error_class(["The number of columns in the CSV you selected does not match the number of columns in the table you selected"])
             del cleaned_data['file']
@@ -132,7 +132,7 @@ class CSVUploadForm(forms.Form):
         schema = cleaned_data.get("schema", "")
         if len(self._errors) == 0 and mode in [CSVUpload.DELETE]:
             pks = getPrimaryKeysForTable(schema, table)
-            header, data, types = parseCSV(os.path.basename(self.path))
+            header, data, types = self.importable.parse()
             if len(pks) != len(header):
                 self._errors['file'] = self.error_class(['The number of columns in the CSV must match the number of primary keys in the table you selected'])
 
@@ -151,7 +151,7 @@ class CSVUploadForm(forms.Form):
         Create the CSVUpload object, and add or attach the
         corresponding table object
         """
-        filename = os.path.basename(self.path)
+        filename = os.path.basename(self.importable.path)
         r = CSVUpload()
         r.filename = filename
         r.mode = self.cleaned_data['mode']
@@ -189,7 +189,8 @@ class CSVPreviewForm(forms.Form):
         self.upload = kwargs.pop("upload")
         super(CSVPreviewForm, self).__init__(*args, **kwargs)
 
-        column_names, data, column_types = parseCSV(self.upload.filename)
+        self.importable = CSVImport(self.upload.filename)
+        column_names, data, column_types = self.importable.parse()
 
         if self.upload.mode == CSVUpload.CREATE:
             # show text field for table name
@@ -332,8 +333,7 @@ class CSVPreviewForm(forms.Form):
             primary_keys = self.cleanedPrimaryKeyColumnNames()
             try:
                 createTable(upload.table, column_names, column_types, primary_keys)
-                importCSVInto(
-                    upload.filename, 
+                self.importable.importInto(
                     upload.table,
                     column_names, 
                     column_name_to_column_index=self.mapColumnNameToColumnIndex(),
@@ -348,8 +348,7 @@ class CSVPreviewForm(forms.Form):
         elif upload.mode in [upload.APPEND, upload.UPSERT, upload.DELETE]:
             # insert all the data
             try:
-                importCSVInto(
-                    upload.filename, 
+                self.importable.importInto(
                     upload.table,
                     self.cleanedColumnNames(), 
                     column_name_to_column_index=self.mapColumnNameToColumnIndex(),

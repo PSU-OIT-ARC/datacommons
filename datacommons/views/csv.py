@@ -9,7 +9,6 @@ from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
-from ..models.csvhelpers import parseCSV
 from ..models.dbhelpers import (
     getDatabaseMeta,
     getColumnsForTable,
@@ -66,7 +65,7 @@ def preview(request):
         form = CSVPreviewForm(upload=upload)
 
     # fetch the meta data about the csv
-    column_names, data, column_types = parseCSV(upload.filename)
+    column_names, data, column_types = form.importable.parse()
     # grab the columns from the existing table
     if upload.mode == CSVUpload.APPEND:
         existing_columns = getColumnsForTable(upload.table.schema, upload.table.name)
