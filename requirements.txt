@@ -3,3 +3,4 @@ psycopg2==2.4.6
 pyshp==1.1.7
 pytz==2012j
 wsgiref==0.1.2
+Shapely==1.2.17

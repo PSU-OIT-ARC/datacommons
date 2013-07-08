@@ -11,6 +11,7 @@ class ColumnTypes:
     TIMESTAMP = 4
     TIMESTAMP_WITH_ZONE = 8
     CHAR = 16
+    GEOMETRY = 32
 
     # map the enum to human readable form
     TO_HUMAN = {
@@ -19,6 +20,7 @@ class ColumnTypes:
         TIMESTAMP: "Timestamp",
         TIMESTAMP_WITH_ZONE: "Timestamp w/timezone",
         CHAR: "Text",
+        GEOMETRY: "Geometry",
     }
 
     # map to a PG datatype
@@ -28,6 +30,7 @@ class ColumnTypes:
         TIMESTAMP: "timestamp without time zone",
         TIMESTAMP_WITH_ZONE: "timestamp with time zone",
         CHAR: "text",
+        GEOMETRY: "geometry",
     }
 
     # maps a *cursor* type code to the enum value
@@ -38,6 +41,7 @@ class ColumnTypes:
         1114: TIMESTAMP,
         1184: TIMESTAMP_WITH_ZONE,
         25: CHAR,
+        17395: GEOMETRY,
     }
 
     @classmethod

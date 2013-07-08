@@ -1,3 +1,4 @@
+from itertools import izip
 import re
 import uuid
 import os
@@ -6,6 +7,11 @@ import shapefile
 import fnmatch
 from django.forms import ValidationError
 from django.conf import settings as SETTINGS
+from shapely.geometry import asShape
+import fnmatch
+from django.forms import ValidationError
+from django.conf import settings as SETTINGS
+from django.contrib.gis import geos
 from django.db import connection, transaction, DatabaseError
 from .models import ColumnTypes, CSVUpload
 from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes
@@ -174,55 +180,59 @@ class ShapefileImport(Importable):
         }
         # don't be hating on my O(n*m) algorithm
         for entry in z.infolist():
-            for glob in required_files:
-                if fnmatch.fnmatch(entry.filename, glob):
-                    required_files[glob] = entry.filename
-                    print entry.filename
+            for file_ext_glob in required_files:
+                if fnmatch.fnmatch(entry.filename, file_ext_glob):
+                    required_files[file_ext_glob] = entry.filename
 
         missing_files = dict([(k, v) for k, v in required_files.items() if v is None])
         if missing_files:
             raise ValidationError("Missing some files: %s" % (",".join(missing_files.keys())))
         # extract the zip
-        dir_name = os.path.split(importable.path)[1].split(".")[0]
-        extract_to = os.path.join(SETTINGS.MEDIA_ROOT, dir_name)
+        guid = os.path.split(importable.path)[1].split(".")[0]
+        extract_to = os.path.join(SETTINGS.MEDIA_ROOT, guid)
         z.extractall(extract_to)
         z.close()
 
         # move the required files
-        for glob, path in required_files.items():
-            ext = glob.replace("*", "")
-            new_path = os.path.normpath(os.path.join(SETTINGS.MEDIA_ROOT, dir_name + ext))
-            old_path = os.path.normpath(os.path.join(SETTINGS.MEDIA_ROOT, dir_name, path))
+        for file_ext_glob, path in required_files.items():
+            ext = file_ext_glob.replace("*", "")
+            new_path = os.path.normpath(os.path.join(SETTINGS.MEDIA_ROOT, guid + ext))
+            old_path = os.path.normpath(os.path.join(SETTINGS.MEDIA_ROOT, guid, path))
             print path, new_path
             os.rename(old_path, new_path)
-            required_files[glob] = new_path
+            required_files[file_ext_glob] = new_path
 
         # change the path of the importabled object to the .shp file
         importable.path = required_files['*.shp']
         return importable
 
     def parse(self):
-        """Parse a CSV and return the header row, some of the data rows and
+        """Parse a shapefile and return the header row, some of the data rows and
         inferred data types"""
         rows = []
         max_rows = 10
         # read in the first few rows, and save to a buffer.
-        # Continue reading to check for any encoding errors
+        # Unlike parsing CSVs, we do not continue reading after the first few
+        # rows, because we assume the shapefile is wellformed
         try:
             for i, row in enumerate(self):
                 if i < max_rows:
                     rows.append(row)
+                else:
+                    break
         except shapefile.ShapefileException as e:
             raise
 
         shp = shapefile.Reader(self.path)
-        header = [sanitize(field[0]) for field in shp.fields]
+        header = [sanitize(field[0]) for field in shp.fields[1:]]
+        header.append("the_geom")
         data = rows
         types = inferColumnTypes(data)
         return header, data, types
 
     def __iter__(self):
         shp = shapefile.Reader(self.path)
-        for row in shp.iterRecords():
+        for row, shape in izip(shp.iterRecords(), shp.iterShapes()):
+            row.append(asShape(shape).wkt)
             yield row
 

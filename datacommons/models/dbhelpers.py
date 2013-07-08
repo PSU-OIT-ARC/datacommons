@@ -210,6 +210,7 @@ def _inferColumnType(data):
     # try to deduce the column type
     # this must be ordered from most strict type to least strict type
     is_valid_as_type = [
+        ColumnTypes.GEOMETRY,
         ColumnTypes.TIMESTAMP_WITH_ZONE,
         ColumnTypes.TIMESTAMP,
         ColumnTypes.INTEGER,
@@ -227,11 +228,18 @@ def _inferColumnType(data):
 def _isValidValueAsPGType(value, type):
     pg_type = ColumnTypes.toPGType(type)
     cursor = connection.cursor()
-    try:
-        cursor.execute("""SELECT %%s::%s""" % (pg_type), (value,))
-    except DatabaseError as e:
-        connection._rollback()
-        return False
+    if type == ColumnTypes.GEOMETRY:
+        try:
+            cursor.execute("""SELECT ST_GeomFromText(%s)""", (value,))
+        except DatabaseError as e:
+            connection._rollback()
+            return False
+    else:
+        try:
+            cursor.execute("""SELECT %%s::%s""" % (pg_type), (value,))
+        except DatabaseError as e:
+            connection._rollback()
+            return False
 
     # if we're checking for a timestamp with a timezone, we need to figure out
     # if it *actually* has a timezone component, since postgres unfortunately
