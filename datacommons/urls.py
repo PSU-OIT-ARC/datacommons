@@ -1,5 +1,5 @@
 from django.conf.urls import patterns, include, url
-from .views import home, csv, doc, schemas, api
+from .views import home, csv, doc, schemas, api, shapefile
 
 # Uncomment the next two lines to enable the admin:
 from django.contrib import admin
@@ -10,6 +10,9 @@ urlpatterns = patterns('',
     url(r'^$', home.index, name='home'),
     url(r'^csv/upload/?$', csv.upload, name='csv-upload'),
     url(r'^csv/preview/?$', csv.preview, name="csv-preview"),
+
+    url(r'^shapefile/upload/?$', shapefile.upload, name='shapefile-upload'),
+    url(r'^shapefile/preview/?$', shapefile.preview, name="shapefile-preview"),
 
     url(r'^doc/upload/?$', doc.upload, name='doc-upload'),
     url(r'^doc/?$', doc.all, name='doc-all'),

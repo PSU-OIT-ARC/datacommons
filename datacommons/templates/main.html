@@ -6,6 +6,7 @@
     <ul id="nav">
         {% if user.is_authenticated %}
             <li><a href="{% url "csv-upload" %}">Import a CSV</a></li>
+            <li><a href="{% url "shapefile-upload" %}">Import a Shapefile</a></li>
             <li><a href="{% url "schemas-all" %}">Schema Browser</a></li>
             <li><a href="{% url "schemas-permissions" %}">Manage Permissions</a></li>
             <li><a href="{% url "doc-upload" %}">Upload a Document</a></li>

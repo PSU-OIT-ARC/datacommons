@@ -41,7 +41,7 @@ class ColumnTypes:
         1114: TIMESTAMP,
         1184: TIMESTAMP_WITH_ZONE,
         25: CHAR,
-        17395: GEOMETRY,
+        16463: GEOMETRY,
     }
 
     @classmethod
@@ -66,6 +66,9 @@ class ColumnTypes:
     @classmethod 
     def fromPGTypeName(cls, type_code):
         """Convert a PG column type like "timestamp" to a type number"""
+        # assume user defined types are geometries
+        if type_code == "USER-DEFINED":
+            return cls.GEOMETRY
         # invert the PG_TYPE_NAME dict
         return dict(zip(cls.TO_PG_TYPE.values(), cls.TO_PG_TYPE.keys()))[type_code]
 

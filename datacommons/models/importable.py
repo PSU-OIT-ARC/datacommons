@@ -1,3 +1,4 @@
+from osgeo import osr
 from itertools import izip
 import re
 import uuid
@@ -14,7 +15,7 @@ from django.conf import settings as SETTINGS
 from django.contrib.gis import geos
 from django.db import connection, transaction, DatabaseError
 from .models import ColumnTypes, CSVUpload
-from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes
+from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes, getColumnsForTable
 from datacommons.unicodecsv import UnicodeReader
 
 class Importable(object):
@@ -69,11 +70,19 @@ class Importable(object):
             names.append(sanitize(name))
         column_names = names
 
+        column_types = getColumnsForTable(schema_name, table_name)
+
         # build the query string for insert
         do_insert = mode in [CSVUpload.CREATE, CSVUpload.APPEND, CSVUpload.UPSERT]
         if do_insert:
             cols = ','.join([n for n in column_names])
-            escape_string = ",".join(["%s" for i in range(len(column_names))])
+            escape_string = []
+            for column_info in column_types:
+                if column_info['type'] == ColumnTypes.GEOMETRY:
+                    escape_string.append("ST_GeomFromText(%%s, %s)" % (self.srid()))
+                else:
+                    escape_string.append("%s")
+            escape_string = ",".join(escape_string)
             insert_sql = """INSERT INTO %s.%s (%s) VALUES(%s)""" % (schema_name, table_name, cols, escape_string)
 
         # build the query string for delete
@@ -204,7 +213,35 @@ class ShapefileImport(Importable):
 
         # change the path of the importabled object to the .shp file
         importable.path = required_files['*.shp']
+
         return importable
+
+    def srid(self):
+        prj_path = self.path.replace(".shp", ".prj")
+        prj_file = open(prj_path, 'r')
+        prj_text = prj_file.read()
+        srs = osr.SpatialReference()
+        srs.ImportFromESRI([prj_text])
+        srs.AutoIdentifyEPSG()
+        return srs.GetAuthorityCode(None)
+
+    def geometryType(self):
+        shp = shapefile.Reader(self.path)
+        shp = shp.shape(0)
+        if shp.shapeType in [shapefile.POINT, shapefile.POINTM, shapefile.POINTZ]:
+            return 'POINT' 
+        elif shp.shapeType in [shapefile.MULTIPOINT, shapefile.MULTIPOINTM, shapefile.MULTIPOINTZ]:
+            return 'MULTIPOINT'
+        elif shp.shapeType in [shapefile.POLYLINE, shapefile.POLYLINEM, shapefile.POLYLINEZ]:
+            if len(shp.parts) == 1:
+                return 'LINESTRING'
+            else:
+                return 'MULTILINESTRING'
+        elif shp.shapeType in [shapefile.POLYGON, shapefile.POLYGONM, shapefile.POLYGONZ]:
+            if len(shp.parts) == 1:
+                return 'POLYGON' 
+            else:
+                return 'MULTIPOLYGON'
 
     def parse(self):
         """Parse a shapefile and return the header row, some of the data rows and
@@ -228,6 +265,8 @@ class ShapefileImport(Importable):
         header.append("the_geom")
         data = rows
         types = inferColumnTypes(data)
+        if types[-1] != ColumnTypes.GEOMETRY:
+            raise ValidationError("The geometry in the shapefile is invalid") 
         return header, data, types
 
     def __iter__(self):

@@ -4,11 +4,13 @@ from django import forms
 from django.forms.widgets import RadioSelect
 from django.db import DatabaseError
 from ..models import CSVUpload, ColumnTypes, Table
-from ..models.importable import ShapefileImport as CSVImport
+from ..models.importable import CSVImport
 from ..models.dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable, createTable, getDatabaseMeta
 
 class CSVUploadForm(forms.Form):
     """This is the initial form displayed to upload a CSV"""
+    IMPORTABLE = CSVImport 
+
     MODES = (
         (CSVUpload.CREATE, "create a new table"), 
         (CSVUpload.APPEND, "append to an existing table"),
@@ -45,7 +47,7 @@ class CSVUploadForm(forms.Form):
 
         try:
             # attempt an upload
-            self.importable = CSVImport.upload(file)
+            self.importable = self.IMPORTABLE.upload(file)
         except TypeError as e:
             raise forms.ValidationError(str(e))
 
@@ -184,12 +186,13 @@ class CSVPreviewForm(forms.Form):
     in their uploaded CSV (see CSVUploadForm) IF they are creating a new table. 
     Or this form allows them to select which existing columns in the table
     match up with their uploaded CSV"""
+    IMPORTABLE = CSVImport 
     # we add all the fields dynamically here
     def __init__(self, *args, **kwargs):
         self.upload = kwargs.pop("upload")
         super(CSVPreviewForm, self).__init__(*args, **kwargs)
 
-        self.importable = CSVImport(self.upload.filename)
+        self.importable = self.IMPORTABLE(self.upload.filename)
         column_names, data, column_types = self.importable.parse()
 
         if self.upload.mode == CSVUpload.CREATE:
@@ -322,6 +325,9 @@ class CSVPreviewForm(forms.Form):
 
         return cleaned_data
 
+    def createTable(self, table, column_names, column_types, primary_keys):
+        createTable(table, column_names, column_types, primary_keys)
+
     def save(self, upload):
         if upload.mode == upload.CREATE: 
             upload.table.name = self.cleaned_data['table']
@@ -332,7 +338,7 @@ class CSVPreviewForm(forms.Form):
             column_types = self.cleanedColumnTypes()
             primary_keys = self.cleanedPrimaryKeyColumnNames()
             try:
-                createTable(upload.table, column_names, column_types, primary_keys)
+                self.createTable(upload.table, column_names, column_types, primary_keys)
                 self.importable.importInto(
                     upload.table,
                     column_names, 

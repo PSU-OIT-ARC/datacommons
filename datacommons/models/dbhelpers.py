@@ -77,6 +77,14 @@ def getDatabaseMeta():
 
     return meta
 
+def addGeometryColumn(schema_name, table_name, srid, type, commit=False):
+    cursor = connection.cursor()
+    cursor.execute("""SELECT AddGeometryColumn(%s, %s, %s, %s, %s, 2)""",
+        (schema_name, table_name, "the_geom", srid, type))
+
+    if commit:
+        transaction.commit_unless_managed()
+
 def getPrimaryKeys():
     """
     Return a dict of dicts of sets where the keys are the schema name, the
@@ -134,9 +142,13 @@ def createSchema(name):
 
     transaction.commit_unless_managed()
 
-def createTable(table, column_names, column_types, primary_keys, commit=False):
+def createTable(table, column_names, column_types, primary_keys, commit=False, geometry_config=None):
     """Create a table in `table.schema` named `table.name`, with columns named
     column_names, with types column_types."""
+    # remove the geom type
+    column_names = [name for type, name in zip(column_types, column_names) if type != ColumnTypes.GEOMETRY]
+    column_types = [type for type in column_types if type != ColumnTypes.GEOMETRY]
+
     # santize all the names
     schema_name = sanitize(table.schema)
     table_name = sanitize(table.name)
@@ -177,6 +189,9 @@ def createTable(table, column_names, column_types, primary_keys, commit=False):
     if len(primary_keys):
         sql = """ALTER TABLE "%s"."%s" ADD PRIMARY KEY (%s);""" % (schema_name, table_name, ",".join(primary_keys))
         cursor.execute(sql)
+
+    if geometry_config:
+        addGeometryColumn(schema_name, table_name, geometry_config['srid'], geometry_config['type'], commit=commit)
 
     # run morgan's fancy proc
     cursor.execute("SELECT dc_set_perms(%s, %s);", (schema_name, table_name))
