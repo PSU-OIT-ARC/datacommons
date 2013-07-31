@@ -1,4 +1,5 @@
-from osgeo import osr
+import json
+import requests
 from itertools import izip
 import re
 import uuid
@@ -220,10 +221,10 @@ class ShapefileImport(Importable):
         prj_path = self.path.replace(".shp", ".prj")
         prj_file = open(prj_path, 'r')
         prj_text = prj_file.read()
-        srs = osr.SpatialReference()
-        srs.ImportFromESRI([prj_text])
-        srs.AutoIdentifyEPSG()
-        return srs.GetAuthorityCode(None)
+
+        response = requests.get("http://prj2epsg.org/search.json", params={"terms": prj_text})
+        results = json.loads(response.text)
+        return int(results['codes'][0]['code'])
 
     def geometryType(self):
         shp = shapefile.Reader(self.path)
