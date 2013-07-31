@@ -1,13 +1,13 @@
 from django import forms
-from .csvs import CSVUploadForm, CSVPreviewForm
+from .csvs import ImportableUploadForm, ImportablePreviewForm
 from ..models.importable import ShapefileImport 
 from ..models import ColumnTypes
 from ..models.dbhelpers import createTable
 
-class ShapefileUploadForm(CSVUploadForm):
+class ShapefileUploadForm(ImportableUploadForm):
     IMPORTABLE = ShapefileImport
 
-class ShapefilePreviewForm(CSVPreviewForm):
+class ShapefilePreviewForm(ImportablePreviewForm):
     IMPORTABLE = ShapefileImport
 
     def __init__(self, *args, **kwargs):

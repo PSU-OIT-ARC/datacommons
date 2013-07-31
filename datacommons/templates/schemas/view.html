@@ -3,6 +3,21 @@
 <h2>{{ schema }}.{{ table }}</h2>
 <p><strong>Export:</strong> <a href="{% url "api-schemas-tables" schema table 'csv' %}">CSV</a> | 
 <a href="{% url "api-schemas-tables" schema table 'json' %}">JSON</a></p>
+<div class="pagination">
+    <span class="step-links">
+        {% if rows.has_previous %}
+            <a href="?page={{ rows.previous_page_number }}">previous</a>
+        {% endif %}
+
+        <span class="current">
+            Page {{ rows.number }} of {{ rows.paginator.num_pages }}.
+        </span>
+
+        {% if rows.has_next %}
+            <a href="?page={{ rows.next_page_number }}">next</a>
+        {% endif %}
+    </span>
+</div>
 
 <table id="preview">
     <thead>

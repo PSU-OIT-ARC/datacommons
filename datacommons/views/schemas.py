@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from django.db.models import Q
+from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseMeta,
@@ -35,6 +36,15 @@ def view(request, schema, table):
         "name": t.name, 
         "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code))
     } for t in cols]
+
+    paginator = Paginator(rows, 100)
+    page = request.GET.get("page")
+    try:
+        rows = paginator.page(page)
+    except PageNotAnInteger:
+        rows = paginator.page(1)
+    except EmptyPage:
+        rows = paginator.page(paginator.num_pages)
 
     return render(request, "schemas/view.html", {
         "rows": rows,

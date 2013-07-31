@@ -73,7 +73,7 @@ class ColumnTypes:
         return dict(zip(cls.TO_PG_TYPE.values(), cls.TO_PG_TYPE.keys()))[type_code]
 
 # Create your models here.
-class CSVUpload(models.Model):
+class ImportableUpload(models.Model):
     # mode
     CREATE = 1
     APPEND = 2
