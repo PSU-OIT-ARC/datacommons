@@ -76,47 +76,44 @@ function showErrors(errors){
 </script>
 
 <form action="" method="post" id="form" >
-{% csrf_token %}
-<h2>Grant/Revoke Permissions</h2>
-<div>
-    <span id="success-message" class="success">Permissions granted/revoked successfully!</span>
-    &nbsp; 
-</div>
-<table id="permissions-table">
-    <tr>
-        <td style="width:100px" class="permission-cell">
-            <div class="permissions-errors" id="errors_{{ form.option.html_name }}"></div>
-            {{ form.option }}
-        </td>
-        <td style="width:100px" class="permission-cell">
-            <div class="permissions-errors" id="errors_{{ form.permissions.html_name }}"></div>
-            {{ form.permissions }}
-        </td>
-        <td style="width:30px; text-align:center" class="permission-cell">
-            on
-        </td>
-        <td rowspan="2" style="width:150px; text-align:left" class="permission-cell">
-            <div class="permissions-errors" id="errors_{{ form.tables.html_name }}"></div>
-            {{ form.tables }}
-        </td>
-        <td style="width:50px; text-align:center" class="permission-cell">
-            to/from
-        </td>
-        <td class="permission-cell">
-            <div class="permissions-errors" id="errors_{{ form.user.html_name }}"></div>
-            {{ form.user }}
-            <input type="submit" name="add" value="Apply" id="add" />
-        </td>
-    </tr>
-    <tr>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-    </tr>
-</table>
+    {% csrf_token %}
+    <h2>Grant/Revoke Permissions</h2>
+    <div class="alert alert-success" style="display:none" id="success-message">Permissions granted/revoked successfully!</div>
 
+    <table id="permissions-table">
+        <tr>
+            <td style="width:100px" class="permission-cell">
+                <div class="permissions-errors" id="errors_{{ form.option.html_name }}"></div>
+                {{ form.option }}
+            </td>
+            <td style="width:100px" class="permission-cell">
+                <div class="permissions-errors" id="errors_{{ form.permissions.html_name }}"></div>
+                {{ form.permissions }}
+            </td>
+            <td style="width:30px; text-align:center" class="permission-cell">
+                on
+            </td>
+            <td rowspan="2" style="width:150px; text-align:left" class="permission-cell checkbox">
+                <div class="permissions-errors" id="errors_{{ form.tables.html_name }}"></div>
+                {{ form.tables }}
+            </td>
+            <td style="width:50px; text-align:center" class="permission-cell">
+                to/from
+            </td>
+            <td class="permission-cell">
+                <div class="permissions-errors" id="errors_{{ form.user.html_name }}"></div>
+                {{ form.user }}
+                <input type="submit" name="add" value="Apply" id="add" />
+            </td>
+        </tr>
+        <tr>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+        </tr>
+    </table>
 </form>
 
 {% endblock %}

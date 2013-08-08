@@ -280,7 +280,6 @@ class ShapefileImport(Importable):
         return header, data, types
 
     def __iter__(self):
-        import pdb; pdb.set_trace()
         shp = shapefile.Reader(self.path)
         for row, shape in izip(shp.iterRecords(), shp.iterShapes()):
             row.append(asShape(shape).wkt)

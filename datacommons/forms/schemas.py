@@ -4,8 +4,9 @@ from django.contrib.auth.models import User
 from ..models import TablePermission, Table
 from ..models.dbhelpers import getDatabaseMeta, isSaneName, createSchema
 import widgets
+from .utils import BetterForm
 
-class PermissionsForm(forms.Form):
+class PermissionsForm(BetterForm):
     GRANT = 1
     REVOKE = 2
 
@@ -59,7 +60,7 @@ class PermissionsForm(forms.Form):
                 elif option == self.GRANT:
                     table.grant(user, permission)
 
-class TablePermissionsForm(forms.Form):
+class TablePermissionsForm(BetterForm):
     def __init__(self, *args, **kwargs):
         self.table = kwargs.pop("table")
         super(TablePermissionsForm, self).__init__(*args, **kwargs)
@@ -99,7 +100,7 @@ class TablePermissionsForm(forms.Form):
                     else:
                         self.table.revoke(user, getattr(TablePermission, action.upper()))
 
-class CreateSchemaForm(forms.Form):
+class CreateSchemaForm(BetterForm):
     name = forms.CharField(max_length=255)
 
     def clean_name(self):

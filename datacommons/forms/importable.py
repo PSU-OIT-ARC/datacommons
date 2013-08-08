@@ -6,8 +6,9 @@ from django.forms.widgets import RadioSelect
 from django.db import DatabaseError
 from ..models import ImportableUpload, ColumnTypes, Table
 from ..models.dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable, createTable, getDatabaseMeta
+from .utils import BetterForm
 
-class ImportableUploadForm(forms.Form):
+class ImportableUploadForm(BetterForm):
     """This is the base class for importable file uploads"""
     IMPORTABLE = None 
 
@@ -183,7 +184,7 @@ class ImportableUploadForm(forms.Form):
         r.save()
         return r
 
-class ImportablePreviewForm(forms.Form):
+class ImportablePreviewForm(BetterForm):
     """This form allows the user to specify the names and types of the columns
     in their uploaded CSV (see ImportableUploadForm) IF they are creating a new table. 
     Or this form allows them to select which existing columns in the table

@@ -2,45 +2,46 @@
 {% block content %}
 <h2>Import a CSV</h2>
 
-<form action="" method="post" enctype="multipart/form-data">
-{% csrf_token %}
-<label>Which schema should this CSV be imported into?</label>
-{% if form.schema.errors %}
-    <p class="error-inline">{% for e in form.schema.errors %} {{ e }} {% endfor %}</p>
-{% endif %}
-
-{{ form.schema }}
-
-<label>Do you want to:</label>
-{% if form.mode.errors %}
-    <p class="error-inline">{% for e in form.mode.errors %} {{ e }} {% endfor %}</p>
-{% endif %}
-{% for choice in form.mode %}
-<label class="sublabel">{{ choice.tag }} {{ choice.choice_label }}</label>
-{% endfor %}
-
-<div id="select-table" style="display:none">
-    <label>Which table do you want to update?</label>
-    {% if form.table.errors %}
-        <p class="error-inline">{% for e in form.table.errors %} {{ e }} {% endfor %}</p>
+<form action="" method="post" enctype="multipart/form-data" class="strong-labels">
+    {% csrf_token %}
+    {% if form.errors %}
+        <div class="alert alert-error">
+            <strong>Some errors were detected!</strong> You must fix them before you can continue.
+        </div>
     {% endif %}
-    {{ form.table }}
 
-    <div id="table-description">
-        <p><strong>Table fields:</strong></p>
-        <ol id="column-list"></ol>
+    <label>Which schema should this CSV be imported into?</label>
+    {{ form.schemas.errors }}
+
+    {{ form.schema }}
+
+    <label>Do you want to:</label>
+    {{ form.mode.errors }}
+    <div class="radio light-labels smashed-labels">
+        {% for choice in form.mode %}
+            <label>{{ choice.tag }} {{ choice.choice_label }}</label>
+        {% endfor %}
     </div>
-</div>
 
-<label>Upload a CSV</label>
-<p class="help-inline">The first row of the CSV is assumed to be the column headings</p>
-{% if form.file.errors %}
-    <p class="error-inline">{% for e in form.file.errors %} {{ e }} {% endfor %}</p>
-{% endif %}
-{{ form.file }}
+    <div id="select-table" style="display:none">
+        <label>Which table do you want to update?</label>
+        {{ form.table.errors }}
+        {{ form.table }}
 
-<input type="submit" name="submit" value="Continue" id="submit" />
+        <div id="table-description">
+            <p><strong>Table fields:</strong></p>
+            <ol id="column-list"></ol>
+        </div>
+    </div>
 
+    <label>Upload a CSV</label>
+    {{ form.file.errors }}
+    <p>The first row of the CSV is assumed to be the column headings.</p>
+    {{ form.file }}
+
+    <br />
+    <br />
+    <input type="submit" name="submit" value="Continue" id="submit" />
 </form>
 
 <script type="text/javascript">

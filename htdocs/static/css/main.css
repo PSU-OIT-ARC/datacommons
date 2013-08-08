@@ -1,3 +1,100 @@
+.strong-labels label {
+    font-weight:bold;
+}
+
+.light-labels label {
+    font-weight:normal;
+}
+
+.smashed-labels label:not(:last-child) {
+    margin-bottom:0px;
+}
+
+/* the upload preview form */
+
+#preview-wrapper {
+    width:100%;
+    overflow:auto;
+}
+
+.field-type {
+    font-size:11px;
+    text-align:center;
+}
+
+#preview {
+    border:none;
+    border-collapse:collapse;
+    margin-top:10px;
+    background-color:#fff;
+}
+
+#preview input, #preview select {
+    margin-bottom:5px;
+    margin-top:5px;
+}
+
+#preview td {
+    border:none;
+    border-right:1px solid #efefef;
+    border-left:1px solid  #efefef;
+}
+
+#preview th {
+    border:none;
+    background-color:#efefef;
+    border-right:1px solid #efefef;
+    border-left:1px solid  #efefef;
+    text-align:left;
+    padding:5px;
+}
+
+#preview thead td {
+    vertical-align:bottom;
+}
+
+#preview tbody td {
+    font-family:Courier, "Courier New", monospace;
+    font-size:11px;
+}
+
+/* permissions page */
+
+.permissions-errors {
+    color:#ff0000;
+}
+
+#permissions-table {
+    border-spacing:0;
+}
+
+#permissions-table td.permission-cell {
+    background-color:#e2e2e2;
+    text-align:center;
+    border:none;
+}
+
+#permissions-table tr:last-child td {
+    border:none;
+}
+
+ul.nested-checkbox {
+    margin-left:0;
+    padding-left:0;
+    list-style-type:none;
+}
+
+.nested-checkbox ul {
+    list-style-type:none;
+    margin-left:0;
+    padding-left:0;
+}
+
+.checkbox-group-heading {
+    font-weight:bold;
+}
+
+/*
 html {
     background:none;
 }
@@ -159,49 +256,7 @@ label {
     font-size:11px;
 }
 
-ul.nested-checkbox {
-    margin-left:0;
-    padding-left:0;
-    list-style-type:none;
-}
-
-.nested-checkbox ul {
-    list-style-type:none;
-    margin-left:0;
-    padding-left:0;
-}
-
-.nested-checkbox label {
-    margin-top:0px;
-    font-weight:normal;
-}
-
-.checkbox-group {
-    margin-top:0;
-}
-
-.checkbox-group-heading {
-    font-weight:bold;
-}
-
-.permissions-errors {
-    color:#ff0000;
-}
-
-#permissions-table {
-    border-spacing:0;
-}
-
-#permissions-table td.permission-cell {
-    background-color:#e2e2e2;
-    text-align:center;
-    border:none;
-}
-
-#permissions-table tr:last-child td {
-    border:none;
-}
-
 #success-message {
     display:none;
 }
+*/

@@ -7,6 +7,7 @@ from ..models import ImportableUpload, ColumnTypes, Table
 from ..models.importable import CSVImport
 from ..models.dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable, createTable, getDatabaseMeta
 from .importable import ImportableUploadForm, ImportablePreviewForm
+from .utils import BetterForm
 
 class ImportableUploadForm(ImportableUploadForm):
     """This is the initial form displayed to upload a CSV"""

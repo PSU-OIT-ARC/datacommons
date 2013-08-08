@@ -1,7 +1,8 @@
 from django import forms
 from ..models import DocUpload
+from .utils import BetterModelForm
 
-class DocUploadForm(forms.ModelForm):
+class DocUploadForm(BetterModelForm):
     """A simple form to upload any type of document"""
     def __init__(self, *args, **kwargs):
         super(DocUploadForm, self).__init__(*args, **kwargs)
