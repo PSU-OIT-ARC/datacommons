@@ -1,9 +1,10 @@
 import os
+import djcelery
 from django.conf.global_settings import TEMPLATE_CONTEXT_PROCESSORS
+djcelery.setup_loader()
 
 PROJECT_DIR = os.path.dirname(__file__)
 HOME_DIR = os.path.normpath(os.path.join(PROJECT_DIR, '../'))
-# Django settings for datacommons project.
 
 ALLOWED_HOSTS = ['.pdx.edu']
 
@@ -108,12 +109,12 @@ INSTALLED_APPS = (
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'datacommons.models',
-    'datacommons.geo',
     # Uncomment the next line to enable the admin:
     'django.contrib.admin',
     'django.contrib.gis',
     # Uncomment the next line to enable admin documentation:
     # 'django.contrib.admindocs',
+    'djcelery',
 )
 
 # A sample logging configuration. The only tangible logging

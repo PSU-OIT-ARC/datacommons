@@ -13,7 +13,7 @@ from ..models.dbhelpers import (
     getDatabaseMeta,
     getColumnsForTable,
 )
-from ..models import ColumnTypes, CSVUpload
+from ..models import ColumnTypes, ImportableUpload
 from ..forms.shapefiles import ShapefileUploadForm, ShapefilePreviewForm
 
 @login_required
@@ -35,14 +35,14 @@ def upload(request):
         "schemas": schemas,
         "schemas_json": schemas_json,
         "errors": errors,
-        "CSVUpload": CSVUpload,
+        "ImportableUpload": ImportableUpload,
         "form": form,
     })
 
 @login_required
 def preview(request):
     """Finalize the shapefile upload"""
-    upload = CSVUpload.objects.get(pk=request.REQUEST['upload_id'])
+    upload = ImportableUpload.objects.get(pk=request.REQUEST['upload_id'])
     # authorized to view this upload?
     if upload.user.pk != request.user.pk:
         raise PermissionDenied()
@@ -67,7 +67,7 @@ def preview(request):
     # fetch the meta data about the shapfile
     column_names, data, column_types = form.importable.parse()
     # grab the columns from the existing table
-    if upload.mode == CSVUpload.APPEND:
+    if upload.mode == ImportableUpload.APPEND:
         existing_columns = getColumnsForTable(upload.table.schema, upload.table.name)
     else:
         existing_columns = None

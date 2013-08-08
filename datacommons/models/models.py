@@ -1,8 +1,9 @@
+import uuid
+import os
 from collections import defaultdict
-from django.db import models
+from django.db import models, connection, transaction, DatabaseError
 from django.utils.datastructures import SortedDict
 from django.contrib.auth.models import User
-from dochelpers import handleUploadedDoc
 
 class ColumnTypes:
     """An enum for column types"""
@@ -61,7 +62,7 @@ class ColumnTypes:
     @classmethod 
     def fromPGCursorTypeCode(cls, type_code):
         """Convert a cursor.description type_code to a type number"""
-        return cls.FROM_PG_CURSOR_TYPE_CODE[type_code]
+        return cls.FROM_PG_CURSOR_TYPE_CODE.get(type_code, cls.CHAR)
 
     @classmethod 
     def fromPGTypeName(cls, type_code):
@@ -72,7 +73,6 @@ class ColumnTypes:
         # invert the PG_TYPE_NAME dict
         return dict(zip(cls.TO_PG_TYPE.values(), cls.TO_PG_TYPE.keys()))[type_code]
 
-# Create your models here.
 class ImportableUpload(models.Model):
     # mode
     CREATE = 1
@@ -122,7 +122,7 @@ class DocUpload(models.Model):
     created_on = models.DateTimeField(auto_now_add=True)
     description = models.CharField(max_length=255, default="")
     filename = models.CharField(max_length=255)
-    file = models.FileField(upload_to=handleUploadedDoc)
+    file = models.FileField(upload_to=lambda instance, filename: str(uuid.uuid4().hex) + os.path.splitext(filename)[-1])
 
     source = models.ForeignKey(Source)
     user = models.ForeignKey(User, related_name='+', null=True, default=None)
@@ -143,6 +143,154 @@ class TableManager(models.Manager):
 
         return results
 
+class Version(models.Model):
+    version_id = models.AutoField(primary_key=True)
+    created_on = models.DateTimeField(auto_now_add=True)
+
+    user = models.ForeignKey(User)
+    table = models.ForeignKey('Table')
+
+    class Meta:
+        db_table = 'version'
+        ordering = ['created_on']
+
+    def restore(self, user):
+        """Overwrite all the data in the table, and replace it with this version""" 
+        table = self.table
+        audit_table_name = table.auditTableName()
+        table_name = table.schema + "." + table.name
+        pks = getPrimaryKeysForTable(table.schema, table.name)
+        pks_str = ",".join(pks)
+        columns = [col['name'] for col in getColumnsForTable(table.schema, table.name)]
+        columns_str = ",".join(columns)
+
+        safe_params = {
+            "table_name": table_name,
+            "pks": pks_str, 
+            "columns": columns_str,
+            "audit_table_name": audit_table_name,
+            "table_columns": ",".join("%s.%s" % (table_name, col) for col in columns),
+            "audit_table_columns": ",".join("%s.%s" % (audit_table_name, col) for col in columns),
+        }
+        args = (self.pk,)
+
+        with transaction.commit_on_success():
+            sql = """
+            SELECT 
+                %(table_columns)s, 
+                restore_to.*, 
+                %(pks)s,
+                CASE WHEN restore_to.* IS null THEN 'delete' WHEN %(table_name)s.* IS NULL THEN 'insert' ELSE 'update' END
+            FROM 
+            (
+                SELECT %(audit_table_columns)s FROM
+                    (
+                        SELECT
+                            SUM(_inserted_or_deleted),
+                            MAX(_version_id) AS _version_id,
+                            %(pks)s
+                        FROM
+                            %(audit_table_name)s
+                        WHERE _version_id <= %%s
+                        GROUP BY
+                            %(pks)s
+                        HAVING
+                            SUM(_inserted_or_deleted) >= 0
+                    ) pks
+                    INNER JOIN %(audit_table_name)s USING(%(pks)s, _version_id)
+                    WHERE _inserted_or_deleted = 1
+            ) AS restore_to
+
+            FULL OUTER JOIN
+
+            %(table_name)s USING(%(pks)s)
+
+            WHERE COALESCE(restore_to.* != %(table_name)s.*, true)
+            """ % safe_params
+            cursor = connection.cursor()
+            cursor.execute(sql, args)
+
+            version = Version(user=user, table=table)
+            version.save()
+
+            for row in cursor.fetchall():
+                original_data = row[0:len(columns)]
+                restore_to = row[len(columns):len(columns)+len(columns)]
+                pk_values = row[len(columns)*2:-1]
+                action = row[-1]
+                print original_data, restore_to, action, pk_values
+                pk_key_value = dict([(pk_name, pk_values[i]) for i, pk_name in enumerate(pks)])
+                if action in ['delete', 'update']:
+                    # delete from the current table
+                    # log the delete in the audit table
+                    cursor.execute("DELETE FROM %(table_name)s WHERE %(escape_string)s" % {
+                        'table_name': table_name,
+                        'escape_string': " AND ".join("%s = %%s" % key for key in pk_key_value.keys())
+                    }, pk_key_value.values())
+
+                    cursor.execute("INSERT INTO public.%(audit_table_name)s (%(pks)s, _inserted_or_deleted, _version_id) VALUES(%(escape_string)s, -1, %%s)" % {
+                        'audit_table_name': audit_table_name,
+                        'pks': ",".join(pk_key_value.keys()),
+                        'escape_string': ",".join("%s" for _ in pk_key_value.values()),
+                    }, pk_key_value.values() + [version.pk])
+
+                if action in ['update', 'insert']:
+                    # insert into the current table
+                    # insert into the log table
+                    cursor.execute("INSERT INTO %(table_name)s (%(columns)s) VALUES(%(escape_string)s)" % {
+                        'table_name': table_name,
+                        'columns': ",".join(columns),
+                        'escape_string': ",".join("%s" for _ in columns),
+                    }, restore_to)
+
+                    cursor.execute("INSERT INTO public.%(audit_table_name)s (%(columns)s, _inserted_or_deleted, _version_id) VALUES(%(escape_string)s, 1, %%s)" % {
+                        'audit_table_name': audit_table_name,
+                        'columns': ",".join(columns),
+                        'escape_string': ",".join("%s" for _ in columns),
+                    }, restore_to + (version.pk,))
+
+            #rows, desc = version.fetchRows()
+            #print "----"
+            #for row in rows:
+            #    print row
+            #raise ValueError("foo")
+
+            
+    def fetchRows(self):
+        """Fetch all the rows in the table for this version of the table"""
+        table = self.table
+        audit_table_name = table.auditTableName()
+        pks = getPrimaryKeysForTable(table.schema, table.name)
+        pks_str = ",".join(pks)
+        columns = [col['name'] for col in getColumnsForTable(table.schema, table.name)]
+        columns_str = ",".join(columns)
+
+        safe_params = {"table": audit_table_name, "pks": pks_str, "columns": columns_str}
+        params = (self.pk,)
+        sql = """
+        SELECT %(columns)s FROM
+        (
+            SELECT 
+                SUM(_inserted_or_deleted), 
+                MAX(_version_id) AS _version_id, 
+                %(pks)s
+            FROM 
+                %(table)s
+            WHERE _version_id <= %%s
+            GROUP BY 
+                %(pks)s
+            HAVING 
+                SUM(_inserted_or_deleted) >= 0
+        ) pks
+        INNER JOIN %(table)s USING(%(pks)s, _version_id)
+        WHERE _inserted_or_deleted = 1
+        """ % safe_params
+        cursor = connection.cursor()
+        cursor.execute(sql, params)
+
+        return cursor.fetchall(), cursor.description
+
+
 class Table(models.Model):
     table_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255)
@@ -159,6 +307,9 @@ class Table(models.Model):
 
     def __unicode__(self):
         return u'%s' % (self.name)
+
+    def auditTableName(self):
+        return "_" + self.schema + "_" + self.name
 
     def canDo(self, user, permission_bit, perm=None):
         # owner can always do stuff
@@ -227,3 +378,5 @@ class TablePermission(models.Model):
     class Meta:
         db_table = 'tablepermission'
         unique_together = ("table", "user")
+
+from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable

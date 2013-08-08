@@ -1,8 +1,21 @@
 {% extends "main.html" %}
 {% block content %}
 <h2>{{ schema }}.{{ table }}</h2>
-<p><strong>Export:</strong> <a href="{% url "api-schemas-tables" schema table 'csv' %}">CSV</a> | 
-<a href="{% url "api-schemas-tables" schema table 'json' %}">JSON</a></p>
+<p><strong>Export:</strong> <a href="{% url "api-schemas-tables" schema table 'csv' %}?version_id={{ version.pk }}">CSV</a> | 
+<a href="{% url "api-schemas-tables" schema table 'json' %}?version_id={{ version.pk }}">JSON</a></p>
+
+{% if versions %}
+    <p><strong>Previous Versions</strong>
+        {% for v in versions %}
+            <a {% if version.pk == v.pk %}style="font-weight:bold"{% endif %}href="?version_id={{ v.pk }}">{{ v.created_on|date:"M-d-Y P" }}</a> 
+        {% endfor %}
+    </p>
+{% endif %}
+
+{% if version %}
+    show restore link
+{% endif %}
+
 <div class="pagination">
     <span class="step-links">
         {% if rows.has_previous %}

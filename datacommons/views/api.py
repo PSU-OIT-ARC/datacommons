@@ -15,7 +15,12 @@ from ..models.dbhelpers import fetchRowsFor
 def view(request, schema, table, format):
     """View the table in schema, including the column names and types"""
     # get all the data
-    rows, cols = fetchRowsFor(schema, table)
+    version_id = request.GET.get("version_id")
+    if version_id:
+        version = Version.objects.get(pk=version_id) 
+        rows, cols = version.fetchRows()
+    else:
+        rows, cols = fetchRowsFor(schema, table)
 
     response = HttpResponse()
     if format == "csv":

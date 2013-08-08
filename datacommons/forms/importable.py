@@ -1,9 +1,10 @@
+import shapefile
 import os
 import datetime
 from django import forms
 from django.forms.widgets import RadioSelect
 from django.db import DatabaseError
-from ..models import CSVUpload, ColumnTypes, Table
+from ..models import ImportableUpload, ColumnTypes, Table
 from ..models.dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable, createTable, getDatabaseMeta
 
 class ImportableUploadForm(forms.Form):
@@ -11,10 +12,10 @@ class ImportableUploadForm(forms.Form):
     IMPORTABLE = None 
 
     MODES = (
-        (CSVUpload.CREATE, "create a new table"), 
-        (CSVUpload.APPEND, "append to an existing table"),
-        (CSVUpload.UPSERT, "append to or update an existing table"),
-        (CSVUpload.DELETE, "delete rows from an existing table"),
+        (ImportableUpload.CREATE, "create a new table"), 
+        (ImportableUpload.APPEND, "append to an existing table"),
+        (ImportableUpload.UPSERT, "append to or update an existing table"),
+        (ImportableUpload.DELETE, "delete rows from an existing table"),
     )
 
     schema = forms.ChoiceField(widget=forms.Select)
@@ -66,7 +67,7 @@ class ImportableUploadForm(forms.Form):
         table = cleaned_data.get("table", "")
         schema = cleaned_data.get("schema", "")
         # only applies to these modes
-        if mode not in [CSVUpload.APPEND, CSVUpload.UPSERT, CSVUpload.DELETE]:
+        if mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE]:
             return
 
         if schema in self.db_meta and table not in self.db_meta[schema]:
@@ -81,7 +82,7 @@ class ImportableUploadForm(forms.Form):
         table = cleaned_data.get("table", "")
         schema = cleaned_data.get("schema", "")
         # only applies to these modes
-        if mode not in [CSVUpload.APPEND, CSVUpload.UPSERT, CSVUpload.DELETE]:
+        if mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE]:
             return
 
         try:
@@ -95,17 +96,17 @@ class ImportableUploadForm(forms.Form):
             return
 
         # can the user insert?
-        if mode in [CSVUpload.APPEND, CSVUpload.UPSERT] and not table_obj.canInsert(self.user):
+        if mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT] and not table_obj.canInsert(self.user):
             self._errors.setdefault("table", self.error_class()).append('You do not have permission to insert into that table!')
             cleaned_data.pop('table', None)
 
         # can the user update?
-        if mode == CSVUpload.UPSERT and not table_obj.canUpdate(self.user):
+        if mode == ImportableUpload.UPSERT and not table_obj.canUpdate(self.user):
             self._errors.setdefault("table", self.error_class()).append('You do not have permission to update rows in that table!')
             cleaned_data.pop('table', None)
 
         # can the user delete?
-        if mode == CSVUpload.DELETE and not table_obj.canDelete(self.user):
+        if mode == ImportableUpload.DELETE and not table_obj.canDelete(self.user):
             self._errors.setdefault("table", self.error_class()).append('You do not have permission to delete rows in that table!')
             cleaned_data.pop('table', None)
 
@@ -117,7 +118,7 @@ class ImportableUploadForm(forms.Form):
         schema = cleaned_data.get("schema", "")
         # don't do any validation if there are already errors, or if we're not
         # in the right mode
-        if len(self._errors) != 0 or mode not in [CSVUpload.APPEND, CSVUpload.UPSERT]:
+        if len(self._errors) != 0 or mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT]:
             return
 
         # compare the number of columns in the table, and the csv
@@ -133,7 +134,7 @@ class ImportableUploadForm(forms.Form):
         mode = cleaned_data.get("mode", 0)
         table = cleaned_data.get("table", "")
         schema = cleaned_data.get("schema", "")
-        if len(self._errors) == 0 and mode in [CSVUpload.DELETE]:
+        if len(self._errors) == 0 and mode in [ImportableUpload.DELETE]:
             pks = getPrimaryKeysForTable(schema, table)
             header, data, types = self.importable.parse()
             if len(pks) != len(header):
@@ -151,20 +152,20 @@ class ImportableUploadForm(forms.Form):
 
     def save(self):
         """
-        Create the CSVUpload object, and add or attach the
+        Create the ImportableUpload object, and add or attach the
         corresponding table object
         """
         filename = os.path.basename(self.importable.path)
-        r = CSVUpload()
+        r = ImportableUpload()
         r.filename = filename
         r.mode = self.cleaned_data['mode']
         r.user = self.user
 
         owner = self.user
 
-        if r.mode != CSVUpload.CREATE:
+        if r.mode != ImportableUpload.CREATE:
             # find the table object, and tack it onto the
-            # CSVUpload object
+            # ImportableUpload object
             r.table = Table.objects.get(
                 name=self.cleaned_data['table'],
                 schema=self.cleaned_data['schema'],
@@ -184,7 +185,7 @@ class ImportableUploadForm(forms.Form):
 
 class ImportablePreviewForm(forms.Form):
     """This form allows the user to specify the names and types of the columns
-    in their uploaded CSV (see CSVUploadForm) IF they are creating a new table. 
+    in their uploaded CSV (see ImportableUploadForm) IF they are creating a new table. 
     Or this form allows them to select which existing columns in the table
     match up with their uploaded CSV"""
     IMPORTABLE = None 
@@ -196,7 +197,7 @@ class ImportablePreviewForm(forms.Form):
         self.importable = self.IMPORTABLE(self.upload.filename)
         column_names, data, column_types = self.importable.parse()
 
-        if self.upload.mode == CSVUpload.CREATE:
+        if self.upload.mode == ImportableUpload.CREATE:
             # show text field for table name
             self.fields['table'] = forms.CharField()
             # fields for each column name, and data type
@@ -214,8 +215,8 @@ class ImportablePreviewForm(forms.Form):
             for i, column_name in enumerate(column_names):
                 self.fields['is_pk_%d' % (i, )] = forms.BooleanField(initial=False, required=False)
 
-        elif self.upload.mode in [CSVUpload.APPEND, CSVUpload.UPSERT, CSVUpload.DELETE]:
-            if self.upload.mode == CSVUpload.DELETE:
+        elif self.upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE]:
+            if self.upload.mode == ImportableUpload.DELETE:
                 existing_column_names = getPrimaryKeysForTable(self.upload.table.schema, self.upload.table.name)
             else:
                 existing_columns = getColumnsForTable(self.upload.table.schema, self.upload.table.name)
@@ -317,7 +318,7 @@ class ImportablePreviewForm(forms.Form):
                     self._errors[k] = self.error_class(["Not a valid column name"])
                     cleaned_data.pop(k, None)
 
-        if self.upload.mode in [CSVUpload.APPEND, CSVUpload.UPSERT]:
+        if self.upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT]:
             # make sure the column names match the existing table
             existing_columns = getColumnsForTable(self.upload.table.schema, self.upload.table.name)
             existing_column_names = [c['name'] for c in existing_columns]
@@ -345,7 +346,7 @@ class ImportablePreviewForm(forms.Form):
                     column_names, 
                     column_name_to_column_index=self.mapColumnNameToColumnIndex(),
                     mode=upload.mode,
-                    commit=True)
+                    user=upload.user)
             except DatabaseError as e:
                 raise
 
@@ -360,7 +361,7 @@ class ImportablePreviewForm(forms.Form):
                     self.cleanedColumnNames(), 
                     column_name_to_column_index=self.mapColumnNameToColumnIndex(),
                     mode=upload.mode,
-                    commit=True, 
+                    user=upload.user,
                 )
             except DatabaseError as e:
                 raise

@@ -13,7 +13,7 @@ from ..models.dbhelpers import (
     getDatabaseMeta,
     getColumnsForTable,
 )
-from ..models import ColumnTypes, Table, TablePermission
+from ..models import ColumnTypes, Table, TablePermission, Version
 from ..forms.schemas import PermissionsForm, TablePermissionsForm, CreateSchemaForm
 
 @login_required
@@ -25,10 +25,25 @@ def all(request):
     })
 
 @login_required
-def view(request, schema, table):
+def view(request, schema_name, table_name):
     """View the table in schema, including the column names and types"""
     # get all the data
-    rows, cols = fetchRowsFor(schema, table)
+    version_id = request.GET.get("version_id")
+    version = None
+    try:
+        table = Table.objects.get(schema=schema_name, name=table_name)
+    except Table.DoesNotExist:
+        table = None
+
+    if version_id:
+        version = Version.objects.get(pk=version_id) 
+        rows, cols = version.fetchRows()
+        #version.restore(user=request.user)
+    else:
+        rows, cols = fetchRowsFor(schema_name, table_name)
+
+    versions = Version.objects.filter(table=table)
+
     # create a list of column names, and human readable type labels
     # to display on the table header
     cols = [
@@ -46,11 +61,14 @@ def view(request, schema, table):
     except EmptyPage:
         rows = paginator.page(paginator.num_pages)
 
+
     return render(request, "schemas/view.html", {
         "rows": rows,
         "cols": cols,
-        "schema": schema,
-        "table": table,
+        "schema": schema_name,
+        "table": table_name,
+        "versions": versions,
+        "version": version,
     })
 
 @login_required

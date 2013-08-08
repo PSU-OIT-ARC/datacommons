@@ -4,11 +4,10 @@ import re
 from collections import defaultdict
 from django.conf import settings as SETTINGS
 from django.db import connection, transaction, DatabaseError
-from .models import ColumnTypes
 
 def isSaneName(value):
     """Return true if value is a valid identifier"""
-    return value == sanitize(value) and len(value) >= 1 and re.search("^[a-z]", value)
+    return value == sanitize(value) and len(value) >= 1 and len(value) <= 63 and re.search("^[a-z]", value)
 
 def sanitize(value):
     """Strip out bad characters from value"""
@@ -172,26 +171,43 @@ def createTable(table, column_names, column_types, primary_keys, commit=False, g
     # alpha integer,
     # beta decimal,
     # gamma text
-    sql = []
+    column_sql = []
     for i in range(len(column_names)):
-        sql.append(column_names[i] + " " + types[i])
-    sql = ",".join(sql)
+        column_sql.append(column_names[i] + " " + types[i])
+    column_sql = ",".join(column_sql)
 
     # sure hope this is SQL injection proof
-    sql = """
+    create_table_sql = """
         CREATE TABLE "%s"."%s" (
             %s
         );
-    """ % (schema_name, table_name, sql)
+    """ % (schema_name, table_name, column_sql)
     cursor = connection.cursor()
-    cursor.execute(sql)
+    cursor.execute(create_table_sql)
+
+    # now add the audit table
+    audit_table_name = table.auditTableName()
+    audit_table_sql = """
+        CREATE TABLE "%s"."%s" (
+            _version_id INTEGER NOT NULL REFERENCES "version" ("version_id") DEFERRABLE INITIALLY DEFERRED,
+            _inserted_or_deleted smallint,
+            %s
+        );
+    """ % ("public", audit_table_name, column_sql)
+    cursor.execute(audit_table_sql)
+
     # add the primary key, if there is one
     if len(primary_keys):
         sql = """ALTER TABLE "%s"."%s" ADD PRIMARY KEY (%s);""" % (schema_name, table_name, ",".join(primary_keys))
         cursor.execute(sql)
 
+        audit_pks = primary_keys + ['_version_id', '_inserted_or_deleted']
+        sql = """ALTER TABLE "%s"."%s" ADD PRIMARY KEY (%s);""" % ("public", audit_table_name, ",".join(audit_pks))
+        cursor.execute(sql)
+
     if geometry_config:
         addGeometryColumn(schema_name, table_name, geometry_config['srid'], geometry_config['type'], commit=commit)
+        addGeometryColumn("public", audit_table_name, geometry_config['srid'], geometry_config['type'], commit=commit)
 
     # run morgan's fancy proc
     cursor.execute("SELECT dc_set_perms(%s, %s);", (schema_name, table_name))
@@ -207,19 +223,16 @@ def fetchRowsFor(schema, table):
     cursor.execute('''SELECT * FROM "%s"."%s"''' % (schema, table))
     return cursor.fetchall(), cursor.description
 
+def fetchRowsFromVersion(schema, table, version):
+    pks = getPrimaryKeysForTable(schema, table)
+
 def inferColumnTypes(rows):
     """`rows` is a list of lists (i.e. a table). For each column in the table,
     determine the appropriate postgres datatype for that column. Return a list
-    of ColumnTypes enums where the first item in the list corrsponds to the
-    datatype of the first column in the table"""
-    types = []
-    number_of_columns = len(rows[0])
-    for column_index in range(number_of_columns):
-        data = []
-        for row_index in range(len(rows)):
-            data.append(rows[row_index][column_index])
-        types.append(_inferColumnType(data))
-    return types
+    of ColumnTypes enums where the n-th item in the list corrsponds to the
+    datatype of the n-th column in the table"""
+    transposed = zip(*rows)
+    return map(_inferColumnType, transposed)
 
 def _inferColumnType(data):
     # try to deduce the column type
@@ -270,3 +283,4 @@ def _isValidValueAsPGType(value, type):
 
     return True
 
+from .models import ColumnTypes
