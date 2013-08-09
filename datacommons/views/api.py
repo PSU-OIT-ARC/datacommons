@@ -11,6 +11,7 @@ from django.core.urlresolvers import reverse
 from django.db import DatabaseError
 from django.core.exceptions import PermissionDenied
 from ..models.dbhelpers import fetchRowsFor
+from ..models import Version
 
 def view(request, schema, table, format):
     """View the table in schema, including the column names and types"""
