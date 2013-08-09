@@ -26,14 +26,14 @@ def view(request, schema, table, format):
     if format == "csv":
         response['Content-Type'] = 'text/csv'
         writer = UnicodeWriter(response)
-        writer.writerow([t.name for t in cols])
+        writer.writerow([col['name'] for col in cols])
         for row in rows:
             writer.writerow([unicode(c) for c in row])
     elif format == "json":
         response['Content-Type'] = 'application/json'
         data = []
         for row in rows:
-            data.append(dict([(col.name, cell) for col, cell in zip(cols, row)]))
+            data.append(dict([(col['name'], cell) for col, cell in zip(cols, row)]))
         json.dump(data, response, cls=JSONEncoder)
 
     return response 

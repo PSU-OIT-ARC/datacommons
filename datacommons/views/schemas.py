@@ -44,14 +44,6 @@ def view(request, schema_name, table_name):
 
     versions = Version.objects.filter(table=table)
 
-    # create a list of column names, and human readable type labels
-    # to display on the table header
-    cols = [
-    {
-        "name": t.name, 
-        "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code))
-    } for t in cols]
-
     paginator = Paginator(rows, 100)
     page = request.GET.get("page")
     try:
@@ -60,7 +52,6 @@ def view(request, schema_name, table_name):
         rows = paginator.page(1)
     except EmptyPage:
         rows = paginator.page(paginator.num_pages)
-
 
     return render(request, "schemas/view.html", {
         "rows": rows,

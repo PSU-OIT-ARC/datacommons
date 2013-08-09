@@ -868,36 +868,3 @@ class SplitHiddenDateTimeWidget(SplitDateTimeWidget):
             widget.input_type = 'hidden'
             widget.is_hidden = True
 
-class NestedCheckboxRender(CheckboxFieldRenderer):
-    """
-    Custom render for display nested checkbox choices 
-    """
-    def render(self):
-        output = []
-        # init
-        self.i = 0
-        output.append("<ul class='nested-checkbox'>")
-
-        # recursively build up the list of nested checkboxinput items
-        def markup(choices, output, i):
-            for choice in choices:
-                # this choice has a sublist of choices
-                if isinstance(choice[1], (list, tuple)):
-                    # build up the heading for the sublist
-                    group_label = conditional_escape(choice[0])
-                    output.append(u"<li><span class='checkbox-group-heading'>%s</span>" % (group_label))
-                    output.append(u'<ul class="checkbox-group">')
-                    # now build the list of checkboxinputs
-                    i = markup(choice[1], output, i)
-                    # close off the sublist
-                    output.append(u"</ul></li>")
-                else:
-                    output.append(u"<li>%s</li>" % (CheckboxChoiceInput(self.name, self.value, self.attrs.copy(), choice, i)))
-                    i += 1
-
-            return i
-
-        markup(self.choices, output, 0)
-        output.append("</ul>")
-        return mark_safe("\n".join(output))
-

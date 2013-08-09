@@ -16,41 +16,38 @@
     show restore link
 {% endif %}
 
-<div class="pagination">
-    <span class="step-links">
-        {% if rows.has_previous %}
-            <a href="?page={{ rows.previous_page_number }}">previous</a>
-        {% endif %}
+{% include '_paginator.html' with paginator=rows %}
 
-        <span class="current">
-            Page {{ rows.number }} of {{ rows.paginator.num_pages }}.
-        </span>
-
-        {% if rows.has_next %}
-            <a href="?page={{ rows.next_page_number }}">next</a>
-        {% endif %}
-    </span>
+<div class="overflowed">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+            {% for col in cols %}
+                <th>{{ col.name }}</th>
+            {% endfor %}
+            </tr>
+            <tr>
+            {% for col in cols %}
+                <th class="field-type">{{ col.type_label }}</th>
+            {% endfor %}
+            </tr>
+        </thead>
+        {% for row in rows %}
+            <tr>
+                {% for col in row %}
+                    <td>
+                        {% if col.geom_type %}
+                            {{ col|truncatewords:1 }}
+                        {% else %}
+                            {{ col }}
+                        {% endif %}
+                    </td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </table>
 </div>
 
-<table id="preview">
-    <thead>
-        <tr>
-        {% for col in cols %}
-            <th>{{ col.name }}</th>
-        {% endfor %}
-        </tr>
-        <tr>
-        {% for col in cols %}
-            <th class="field-type">{{ col.type_label }}</th>
-        {% endfor %}
-        </tr>
-    </thead>
-    {% for row in rows %}
-        <tr>
-            {% for col in row %}
-                <td>{{ col }}</td>
-            {% endfor %}
-        </tr>
-    {% endfor %}
-</table>
+{% include '_paginator.html' with paginator=rows %}
+
 {% endblock %}

@@ -3,6 +3,7 @@ import os
 import re
 from collections import defaultdict
 from django.conf import settings as SETTINGS
+from django.contrib.gis.geos import GEOSGeometry
 from django.db import connection, transaction, DatabaseError
 
 def isSaneName(value):
@@ -215,16 +216,32 @@ def createTable(table, column_names, column_types, primary_keys, commit=False, g
     if commit:
         transaction.commit_unless_managed()
 
-def fetchRowsFor(schema, table):
+def fetchRowsFor(schema, table, limit=100, offset=0):
     """Return a 2-tuple of the rows in schema.table, and the cursor description"""
     schema = sanitize(schema)
     table = sanitize(table)
     cursor = connection.cursor()
-    cursor.execute('''SELECT * FROM "%s"."%s"''' % (schema, table))
-    return cursor.fetchall(), cursor.description
-
-def fetchRowsFromVersion(schema, table, version):
     pks = getPrimaryKeysForTable(schema, table)
+    pk_string = ",".join(pks)
+    cursor.execute('''SELECT * FROM "%s"."%s" ORDER BY %s LIMIT %%s OFFSET %%s''' % (schema, table, pk_string), (limit, offset),)
+    return coerceRowsAndParseColumns(cursor.fetchall(), cursor.description)
+
+def coerceRowsAndParseColumns(rows, desc):
+    cols = [
+    {
+        "name": t.name, 
+        "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code))
+    } for t in desc]
+    has_geom = any(ColumnTypes.fromPGCursorTypeCode(t.type_code) == ColumnTypes.GEOMETRY for t in desc)
+
+    if not has_geom:
+        return rows, cols
+
+    better_rows = []
+    for row in rows:
+        better_rows.append(row[:-1] + (GEOSGeometry(row[-1]),))
+
+    return better_rows, cols
 
 def inferColumnTypes(rows):
     """`rows` is a list of lists (i.e. a table). For each column in the table,

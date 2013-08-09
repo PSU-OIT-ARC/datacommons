@@ -1,28 +1,33 @@
 {% extends "main.html" %}
 {% block content %}
 <h2>{{ table.schema }}.{{ table.name }}</h2>
-<form method="post" action="">
-{% csrf_token %}
-<table>
-    <thead>
-        <tr>
-            <th>Name</th>
-            <th>Insert</th>
-            <th>Update</th>
-            <th>Delete</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for user, can_insert, can_update, can_delete in form.fieldIter %}
-            <tr>
-                <td>{{ user.username }}</td>
-                <td>{{ can_insert }}</td>
-                <td>{{ can_update }}</td>
-                <td>{{ can_delete }}</td>
-            </tr>
-        {% endfor %}
-    </tbody>
-</table>
-<input type="submit" name="submit" value="Save" />
-</form>
+{% if form.fields|length != 0 %}
+    <form method="post" action="">
+        {% csrf_token %}
+        <table class="table table-striped no-margin permissions-list-editor">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Insert</th>
+                    <th>Update</th>
+                    <th>Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user, can_insert, can_update, can_delete in form.fieldIter %}
+                    <tr>
+                        <td>{{ user.username }}</td>
+                        <th>{{ can_insert }}</th>
+                        <th>{{ can_update }}</th>
+                        <th>{{ can_delete }}</th>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <input type="submit" name="submit" value="Save" />
+    </form>
+{% else %}
+    <div class="alert alert-info">No permissions defined for this table</div>
+{% endif %}
+
 {% endblock %}

@@ -1,3 +1,7 @@
+body {
+    width:960px;
+    margin:auto;
+}
 .strong-labels label {
     font-weight:bold;
 }
@@ -8,6 +12,19 @@
 
 .smashed-labels label:not(:last-child) {
     margin-bottom:0px;
+}
+
+input[type=file] {
+    margin-bottom:6px;
+}
+
+.overflowed {
+    width:100%;
+    overflow:auto;
+}
+
+.no-margin input, .no-margin select {
+    margin:0;
 }
 
 /* the upload preview form */
@@ -29,7 +46,7 @@
     background-color:#fff;
 }
 
-#preview input, #preview select {
+.preview input, .preview select {
     margin-bottom:5px;
     margin-top:5px;
 }
@@ -38,6 +55,7 @@
     border:none;
     border-right:1px solid #efefef;
     border-left:1px solid  #efefef;
+    padding:3px;
 }
 
 #preview th {
@@ -68,6 +86,10 @@
     border-spacing:0;
 }
 
+#permissions-table td {
+    padding:3px;
+}
+
 #permissions-table td.permission-cell {
     background-color:#e2e2e2;
     text-align:center;
@@ -76,6 +98,14 @@
 
 #permissions-table tr:last-child td {
     border:none;
+}
+
+.permissions-table input, .permissions-table select {
+    margin:0;
+}
+
+.permissions-list-editor th {
+    text-align:center;
 }
 
 ul.nested-checkbox {

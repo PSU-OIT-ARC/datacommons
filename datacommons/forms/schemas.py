@@ -1,6 +1,7 @@
 from django.db import IntegrityError, transaction
 from django import forms
 from django.contrib.auth.models import User
+from django.utils.datastructures import SortedDict
 from ..models import TablePermission, Table
 from ..models.dbhelpers import getDatabaseMeta, isSaneName, createSchema
 import widgets
@@ -19,25 +20,29 @@ class PermissionsForm(BetterForm):
         (TablePermission.UPDATE, "Update"),
         (TablePermission.DELETE, "Delete"),
     ), coerce=int, empty_value=None)
-    tables = forms.ModelMultipleChoiceField(
-        queryset=None, 
-        widget=widgets.CheckboxSelectMultiple(renderer=widgets.NestedCheckboxRender),
-    )
     user = forms.CharField(
-        widget=widgets.TextInput(attrs={"placeholder": "Enter username"})
+        widget=widgets.TextInput(attrs={
+            "placeholder": "Enter username",
+            "class": "span2",
+        })
     )
 
     def __init__(self, *args, **kwargs):
-        user = kwargs.pop("user")
+        self.user = kwargs.pop("user")
         super(PermissionsForm, self).__init__(*args, **kwargs)
 
-        options = Table.objects.groupedBySchema(owner=user)
-        choices = []
+        # create a bunch of fields for each table
+        options = Table.objects.groupedBySchema(owner=self.user)
+        # keep a dict of schemas, where the key is the schema name, and the
+        # value is a list of boundfields for all the tables in the schemas
+        self.schemas = SortedDict()
         for schema, tables in options.items():
-            tables = [(t.pk, t.name) for t in tables]
-            choices.append((schema, tables))
-        self.fields['tables'].choices = choices
-        self.fields['tables'].queryset = Table.objects.filter(owner=user).exclude(created_on=None)
+            for table in tables:
+                field_name = "table_%d" % table.pk
+                field = self.fields[field_name] = forms.BooleanField(required=False, label=table.name)
+                bound_field = self[field_name]
+                bound_field.pk = table.pk
+                self.schemas.setdefault(schema, []).append(bound_field)
 
     def clean_user(self):
         user = self.cleaned_data['user']
@@ -46,6 +51,22 @@ class PermissionsForm(BetterForm):
         except User.DoesNotExist:
             raise forms.ValidationError("That user does not exist")
         return user
+
+    def clean(self):
+        cleaned_data = super(PermissionsForm, self).clean()
+
+        # validate all the tables selected by the user to make sure they exist
+        # and are owned by the user
+        tables = dict([(t.pk, t) for t in Table.objects.filter(owner=self.user)])
+        cleaned_data['tables'] = []
+        for field_name in self.fields:
+            if field_name.startswith("table_"):
+                pk = int(field_name[len("table_"):])
+                if pk not in tables:
+                    raise forms.ValidationError("Not a valid table")
+                cleaned_data['tables'].append(tables[pk])
+        
+        return cleaned_data
 
     def save(self):
         tables = self.cleaned_data['tables']
