@@ -216,14 +216,14 @@ def createTable(table, column_names, column_types, primary_keys, commit=False, g
     if commit:
         transaction.commit_unless_managed()
 
-def fetchRowsFor(schema, table, limit=100, offset=0):
+def fetchRowsFor(schema, table):
     """Return a 2-tuple of the rows in schema.table, and the cursor description"""
     schema = sanitize(schema)
     table = sanitize(table)
     cursor = connection.cursor()
     pks = getPrimaryKeysForTable(schema, table)
     pk_string = ",".join(pks)
-    cursor.execute('''SELECT * FROM "%s"."%s" ORDER BY %s LIMIT %%s OFFSET %%s''' % (schema, table, pk_string), (limit, offset),)
+    cursor.execute('''SELECT * FROM "%s"."%s" ORDER BY %s''' % (schema, table, pk_string))
     return coerceRowsAndParseColumns(cursor.fetchall(), cursor.description)
 
 def coerceRowsAndParseColumns(rows, desc):

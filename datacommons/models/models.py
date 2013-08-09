@@ -256,7 +256,7 @@ class Version(models.Model):
             #raise ValueError("foo")
 
             
-    def fetchRows(self, limit=100, offset=0):
+    def fetchRows(self):
         """Fetch all the rows in the table for this version of the table"""
         table = self.table
         audit_table_name = table.auditTableName()
@@ -266,7 +266,7 @@ class Version(models.Model):
         columns_str = ",".join(columns)
 
         safe_params = {"table": audit_table_name, "pks": pks_str, "columns": columns_str}
-        params = (self.pk, limit, offset)
+        params = (self.pk,)
         sql = """
         SELECT %(columns)s FROM
         (
@@ -284,8 +284,7 @@ class Version(models.Model):
         ) pks
         INNER JOIN %(table)s USING(%(pks)s, _version_id)
         WHERE _inserted_or_deleted = 1
-        ORDER BY *
-        LIMIT %s OFFSET %s
+        ORDER BY %(pks)s
         """ % safe_params
         cursor = connection.cursor()
         cursor.execute(sql, params)
