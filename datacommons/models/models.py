@@ -79,6 +79,7 @@ class ImportableUpload(models.Model):
     APPEND = 2
     UPSERT = 3
     DELETE = 4
+    REPLACE = 5
 
     # status
     DONE = 4
@@ -93,6 +94,7 @@ class ImportableUpload(models.Model):
         (CREATE, "Create"),
         (UPSERT, "Upsert"),
         (DELETE, "Delete"),
+        (REPLACE, "Replace"),
     ))
 
     table = models.OneToOneField('Table')
@@ -143,6 +145,86 @@ class TableManager(models.Manager):
 
         return results
 
+class TableMutator(object):
+    def __init__(self, version):
+        table = version.table
+        self.column_info = getColumnsForTable(table.schema, table.name)
+
+        # add the pk flag to the column info
+        pks = getPrimaryKeysForTable(table.schema, table.name)
+        for col in self.column_info:
+            col['is_pk'] = col['name'] in pks
+
+        # build SQL query strings for inserting data and deleting data from the
+        # table itself, and the audit table
+        
+        # build the escape string for insert queries. A little complex because
+        # we have to handle Geometry columns. This requires the caller to add
+        # an srid dictionary key to the appropriate column.
+        escape_string = []
+        for col in self.column_info:
+            if col['type'] == ColumnTypes.GEOMETRY:
+                escape_string.append("ST_GeomFromText(%%s, %s)" % (col['srid']))
+            else:
+                escape_string.append("%s")
+        escape_string = ",".join(escape_string)
+        safe_col_name_str = ",".join('"%s"' % sanitize(col['name']) for col in self.column_info)
+        self.insert_sql = """INSERT INTO "%s"."%s" (%s) VALUES(%s)""" % (
+            sanitize(table.schema), 
+            sanitize(table.name),
+            safe_col_name_str,
+            escape_string,
+        )
+        self.audit_insert_sql = """INSERT INTO public."%s" (%s, _inserted_or_deleted, _version_id) VALUES(%s, 1, %s)""" % (
+            internalSanitize(table.auditTableName()),
+            safe_col_name_str, 
+            escape_string,
+            int(version.pk),
+        )
+
+        # now build the delete SQL strings
+        escape_string = " AND ".join(['"%s" = %%s' % sanitize(col['name']) for col in self.column_info if col['is_pk']])
+        self.delete_sql = 'DELETE FROM "%s"."%s" WHERE %s' % (
+            sanitize(table.schema), 
+            sanitize(table.name), 
+            escape_string
+        )
+        escape_string = ",".join(["%s" for _ in pks])
+        safe_pk_name_str = ",".join(['"%s"' % sanitize(col['name']) for col in self.column_info if col['is_pk']])
+        self.audit_delete_sql = """INSERT INTO public.%s (%s, _inserted_or_deleted, _version_id) VALUES(%s, -1, %s)""" % (
+            internalSanitize(table.auditTableName()), 
+            safe_pk_name_str,
+            escape_string,
+            int(version.pk)
+        )
+        self.cursor = connection.cursor()
+
+    def insertRow(self, values):
+        """Values is a tuple of values that corresponds to the order of self.column_info"""
+        self._doSQL(self.insert_sql, values)
+        self._doSQL(self.audit_insert_sql, values)
+
+    def deleteRow(self, values):
+        """Values is a tuple of pk values that corresponds to the order of self.column_info"""
+        self._doSQL(self.delete_sql, values)
+        self._doSQL(self.audit_delete_sql, values)
+
+    def pkNames(self):
+        return [col['name'] for col in self.column_info if col['is_pk']]
+
+    def columnNames(self):
+        return [col['name'] for col in self.column_info]
+
+    def _doSQL(self, sql, params):
+        cursor = self.cursor
+        try:
+            cursor.execute(sql, params)
+        except DatabaseError as e:
+            connection._rollback()
+            # tack on the SQL statement that caused the error
+            e.sql = connection.queries[-1]['sql']
+            raise
+
 class Version(models.Model):
     version_id = models.AutoField(primary_key=True)
     created_on = models.DateTimeField(auto_now_add=True)
@@ -154,108 +236,81 @@ class Version(models.Model):
         db_table = 'version'
         ordering = ['created_on']
 
-    def restore(self, user):
-        """Overwrite all the data in the table, and replace it with this version""" 
-        table = self.table
-        audit_table_name = table.auditTableName()
-        table_name = table.schema + "." + table.name
-        pks = getPrimaryKeysForTable(table.schema, table.name)
-        pks_str = ",".join(pks)
-        columns = [col['name'] for col in getColumnsForTable(table.schema, table.name)]
-        columns_str = ",".join(columns)
+    def diff(self, column_info):
+        table_name = '"%s"."%s"' % (sanitize(self.table.schema), sanitize(self.table.name))
+        audit_table_name = '"%s"' % (internalSanitize(self.table.auditTableName()))
 
         safe_params = {
             "table_name": table_name,
-            "pks": pks_str, 
-            "columns": columns_str,
+            "pks": ",".join('"%s"' % sanitize(col['name']) for col in column_info if col['is_pk']), 
             "audit_table_name": audit_table_name,
-            "table_columns": ",".join("%s.%s" % (table_name, col) for col in columns),
-            "audit_table_columns": ",".join("%s.%s" % (audit_table_name, col) for col in columns),
+            "table_columns": ",".join('%s."%s"' % (table_name, sanitize(col['name'])) for col in column_info),
+            "audit_table_columns": ",".join('%s."%s"' % (audit_table_name, col['name']) for col in column_info),
         }
-        args = (self.pk,)
 
+        sql = """
+        SELECT 
+            %(table_columns)s, 
+            _restore_to.*, 
+            %(pks)s,
+            CASE WHEN _restore_to.* IS null THEN 'delete' WHEN %(table_name)s.* IS NULL THEN 'insert' ELSE 'update' END
+        FROM 
+        (
+            SELECT %(audit_table_columns)s FROM
+                (
+                    SELECT
+                        SUM(_inserted_or_deleted),
+                        MAX(_version_id) AS _version_id,
+                        %(pks)s
+                    FROM
+                        %(audit_table_name)s
+                    WHERE _version_id <= %%s
+                    GROUP BY
+                        %(pks)s
+                    HAVING
+                        SUM(_inserted_or_deleted) >= 0
+                ) pks
+                INNER JOIN %(audit_table_name)s USING(%(pks)s, _version_id)
+                WHERE _inserted_or_deleted = 1
+        ) _restore_to
+
+        FULL OUTER JOIN
+
+        %(table_name)s USING(%(pks)s)
+
+        WHERE COALESCE(_restore_to.* != %(table_name)s.*, true)
+        """ % safe_params
+        cursor = connection.cursor()
+
+        cursor.execute(sql, (self.pk,))
+        for row in cursor.fetchall():
+            original_data = row[0:len(column_info)]
+            restore_to = row[len(column_info):2*len(column_info)]
+            pk_values = row[len(column_info)*2:-1]
+            action = row[-1]
+            yield original_data, restore_to, pk_values, action
+
+    def restore(self, user):
+        """Overwrite all the data in the table, and replace it with this version""" 
         with transaction.commit_on_success():
-            sql = """
-            SELECT 
-                %(table_columns)s, 
-                restore_to.*, 
-                %(pks)s,
-                CASE WHEN restore_to.* IS null THEN 'delete' WHEN %(table_name)s.* IS NULL THEN 'insert' ELSE 'update' END
-            FROM 
-            (
-                SELECT %(audit_table_columns)s FROM
-                    (
-                        SELECT
-                            SUM(_inserted_or_deleted),
-                            MAX(_version_id) AS _version_id,
-                            %(pks)s
-                        FROM
-                            %(audit_table_name)s
-                        WHERE _version_id <= %%s
-                        GROUP BY
-                            %(pks)s
-                        HAVING
-                            SUM(_inserted_or_deleted) >= 0
-                    ) pks
-                    INNER JOIN %(audit_table_name)s USING(%(pks)s, _version_id)
-                    WHERE _inserted_or_deleted = 1
-            ) AS restore_to
-
-            FULL OUTER JOIN
-
-            %(table_name)s USING(%(pks)s)
-
-            WHERE COALESCE(restore_to.* != %(table_name)s.*, true)
-            """ % safe_params
-            cursor = connection.cursor()
-            cursor.execute(sql, args)
-
-            version = Version(user=user, table=table)
+            version = Version(user=user, table=self.table)
             version.save()
+            tm = TableMutator(version)
 
-            for row in cursor.fetchall():
-                original_data = row[0:len(columns)]
-                restore_to = row[len(columns):len(columns)+len(columns)]
-                pk_values = row[len(columns)*2:-1]
-                action = row[-1]
-                print original_data, restore_to, action, pk_values
-                pk_key_value = dict([(pk_name, pk_values[i]) for i, pk_name in enumerate(pks)])
+            rows = self.diff(tm.column_info)
+            for original_data, restore_to, pk_values, action in rows:
                 if action in ['delete', 'update']:
-                    # delete from the current table
-                    # log the delete in the audit table
-                    cursor.execute("DELETE FROM %(table_name)s WHERE %(escape_string)s" % {
-                        'table_name': table_name,
-                        'escape_string': " AND ".join("%s = %%s" % key for key in pk_key_value.keys())
-                    }, pk_key_value.values())
-
-                    cursor.execute("INSERT INTO public.%(audit_table_name)s (%(pks)s, _inserted_or_deleted, _version_id) VALUES(%(escape_string)s, -1, %%s)" % {
-                        'audit_table_name': audit_table_name,
-                        'pks': ",".join(pk_key_value.keys()),
-                        'escape_string': ",".join("%s" for _ in pk_key_value.values()),
-                    }, pk_key_value.values() + [version.pk])
+                    tm.deleteRow(pk_values)
 
                 if action in ['update', 'insert']:
-                    # insert into the current table
-                    # insert into the log table
-                    cursor.execute("INSERT INTO %(table_name)s (%(columns)s) VALUES(%(escape_string)s)" % {
-                        'table_name': table_name,
-                        'columns': ",".join(columns),
-                        'escape_string': ",".join("%s" for _ in columns),
-                    }, restore_to)
+                    tm.insertRow(restore_to)
 
-                    cursor.execute("INSERT INTO public.%(audit_table_name)s (%(columns)s, _inserted_or_deleted, _version_id) VALUES(%(escape_string)s, 1, %%s)" % {
-                        'audit_table_name': audit_table_name,
-                        'columns': ",".join(columns),
-                        'escape_string': ",".join("%s" for _ in columns),
-                    }, restore_to + (version.pk,))
+            rows, desc = version.fetchRows()
+            print "----"
+            for row in rows:
+                print row
+            raise ValueError("foo")
 
-            #rows, desc = version.fetchRows()
-            #print "----"
-            #for row in rows:
-            #    print row
-            #raise ValueError("foo")
-
-            
     def fetchRows(self):
         """Fetch all the rows in the table for this version of the table"""
         table = self.table
@@ -380,4 +435,4 @@ class TablePermission(models.Model):
         db_table = 'tablepermission'
         unique_together = ("table", "user")
 
-from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable, coerceRowsAndParseColumns
+from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable, coerceRowsAndParseColumns, sanitize, internalSanitize

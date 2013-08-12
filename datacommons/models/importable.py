@@ -15,7 +15,7 @@ from django.forms import ValidationError
 from django.conf import settings as SETTINGS
 from django.contrib.gis import geos
 from django.db import connection, transaction, DatabaseError
-from .models import ColumnTypes, ImportableUpload, Version
+from .models import ColumnTypes, ImportableUpload, Version, TableMutator
 from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes, getColumnsForTable
 from datacommons.unicodecsv import UnicodeReader
 
@@ -57,83 +57,50 @@ class Importable(object):
         """
         raise NotImplementedError("You must implement the __iter__ method")
 
-    def importInto(self, table, column_names, column_name_to_column_index, mode, user=None):
+    def importInto(self, table, column_name_to_column_index, mode, user=None):
         """Read a file and insert into schema_name.table_name"""
         # create a new version for the table
         with transaction.commit_on_success():
             version = Version(user=user, table=table)
             version.save()
 
-            # sanitize everything
-            schema_name = sanitize(table.schema)
-            table_name = sanitize(table.name)
-            names = []
-            for name in column_names:
-                names.append(sanitize(name))
-            column_names = names
+            tm = TableMutator(version)
+            # add the srid of the geometry column to the TableMutator's column_info
+            geom_column_name = [col['name'] for col in tm.column_info if col['type'] == ColumnTypes.GEOMETRY]
+            if geom_column_name:
+                tm.column_info[geom_column_name]['srid'] = self.srid()
 
-            column_types = getColumnsForTable(schema_name, table_name)
-
-            audit_table_name = table.auditTableName()
-
-            # build the query string for insert
-            do_insert = mode in [ImportableUpload.CREATE, ImportableUpload.APPEND, ImportableUpload.UPSERT]
-            if do_insert:
-                cols = ','.join([n for n in column_names])
-                escape_string = []
-                for column_info in column_types:
-                    if column_info['type'] == ColumnTypes.GEOMETRY:
-                        escape_string.append("ST_GeomFromText(%%s, %s)" % (self.srid()))
-                    else:
-                        escape_string.append("%s")
-                escape_string = ",".join(escape_string)
-                insert_sql = """INSERT INTO %s.%s (%s) VALUES(%s)""" % (schema_name, table_name, cols, escape_string)
-                
-                audit_insert_sql = """INSERT INTO public.%s (%s, _inserted_or_deleted, _version_id) VALUES(%s, 1, %%s)""" % (audit_table_name, cols, escape_string)
-
-            # build the query string for delete
+            do_insert = mode in [ImportableUpload.CREATE, ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]
             do_delete = mode in [ImportableUpload.UPSERT, ImportableUpload.DELETE]
-            if do_delete:
-                pks = getPrimaryKeysForTable(schema_name, table_name)
-                escape_string = " AND ".join(["%s = %%s" % pk for pk in pks])
-                delete_sql = "DELETE FROM %s.%s WHERE %s" % (schema_name, table_name, escape_string)
 
-                escape_string = ",".join(["%s" for _ in pks])
-                audit_delete_sql = """INSERT INTO public.%s (%s, _inserted_or_deleted, _version_id) VALUES(%s, -1, %%s)""" % (audit_table_name, ",".join(pks), escape_string)
+            pks = tm.pkNames()
+            column_names = tm.columnNames()
 
             # execute the query string for every row
-            for row_i, row in enumerate(self):
-                if row_i == 0: continue # skip header row
-                # convert empty strings to null
-                for col_i, col in enumerate(row):
-                    row[col_i] = col if col != "" else None
+            try:
+                for row_i, row in enumerate(self):
+                    # convert empty strings to null
+                    for col_i, col in enumerate(row):
+                        row[col_i] = col if col != "" else None
 
-                if do_delete:
-                    # remap the primary key columns since the order of the columns in the CSV does not match
-                    # the order of the columns in the db table
-                    params = [row[column_name_to_column_index[k]] for k in pks]
-                    self._doSQL(delete_sql, params, "delete", row_i + 1)
-                    self._doSQL(audit_delete_sql, params + [version.pk], "insert", row_i+1)
+                    if do_delete:
+                        # remap the primary key columns since the order of the columns in the CSV does not match
+                        # the order of the columns in the db table
+                        params = [row[column_name_to_column_index[k]] for k in pks]
+                        tm.deleteRow(params)
 
-                if do_insert:
-                    # remap the columns since the order of the columns in the CSV does not match
-                    # the order of the columns in the db table
-                    params = [row[column_name_to_column_index[k]] for k in column_names]
-                    self._doSQL(insert_sql, params, "insert", row_i + 1)
-                    self._doSQL(audit_insert_sql, params + [version.pk], "insert", row_i + 1)
+                    if do_insert:
+                        # remap the columns since the order of the columns in the CSV does not match
+                        # the order of the columns in the db table
+                        params = [row[column_name_to_column_index[k]] for k in column_names]
+                        tm.insertRow(params)
+            except DatabaseError as e:
+                raise DatabaseError("Tried to insert line %d of the data, got this `%s`. SQL was: `%s`:" % (
+                    row_i,
+                    str(e),
+                    e.sql,
+                ))
 
-    def _doSQL(self, sql, params, exception_operation, exception_line):
-        """
-        helper for importCSVInto(), just runs the sql, with params, and
-        generates a nice exception
-        """
-        cursor = connection.cursor()
-        try:
-            cursor.execute(sql, params)
-        except DatabaseError as e:
-            connection._rollback()
-            raise DatabaseError("Tried to %s line %s of the CSV, got this from database: %s. SQL was: %s" % 
-                (exception_operation, exception_line, str(e), connection.queries[-1]['sql'])) 
 
 class CSVImport(Importable):
     ALLOWED_CONTENT_TYPES = [
@@ -160,15 +127,23 @@ class CSVImport(Importable):
             e.line = (i + 2)
             raise
 
-        header = [sanitize(c) for c in rows[0]]
-        data = rows[1:]
+        header = [sanitize(c) for c in self.header()]
+        data = rows
         types = inferColumnTypes(data)
         return header, data, types
+
+    def header(self):
+        with open(self.path, 'r') as csvfile:
+            reader = UnicodeReader(csvfile)
+            for i, row in enumerate(reader):
+                return row
 
     def __iter__(self):
         with open(self.path, 'r') as csvfile:
             reader = UnicodeReader(csvfile)
-            for row in reader:
+            for i, row in enumerate(reader):
+                # skip over the header row
+                if i == 0: continue
                 yield row
 
 

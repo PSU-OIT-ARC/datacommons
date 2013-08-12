@@ -16,6 +16,12 @@ def sanitize(value):
     value = re.sub(r'\s+', '_', value).strip('_')
     return re.sub(r'[^a-z_0-9]', '', value)
 
+def internalSanitize(value):
+    """This differs from sanitize() because it allows names that start or end
+    with underscore"""
+    value = value.lower().strip()
+    return re.sub(r'[^a-z_0-9]', '', value)
+
 def getDatabaseMeta():
     """Returns a dict with keys as the schema name, and values as a dict with
     keys as table names, and values as a list of dicts with {type, type_label,

@@ -17,6 +17,7 @@ class ImportableUploadForm(BetterForm):
         (ImportableUpload.APPEND, "append to an existing table"),
         (ImportableUpload.UPSERT, "append to or update an existing table"),
         (ImportableUpload.DELETE, "delete rows from an existing table"),
+        (ImportableUpload.REPLACE, "delete all existing rows and insert new ones"),
     )
 
     schema = forms.ChoiceField(widget=forms.Select)
@@ -68,7 +69,7 @@ class ImportableUploadForm(BetterForm):
         table = cleaned_data.get("table", "")
         schema = cleaned_data.get("schema", "")
         # only applies to these modes
-        if mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE]:
+        if mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
             return
 
         if schema in self.db_meta and table not in self.db_meta[schema]:
@@ -83,7 +84,7 @@ class ImportableUploadForm(BetterForm):
         table = cleaned_data.get("table", "")
         schema = cleaned_data.get("schema", "")
         # only applies to these modes
-        if mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE]:
+        if mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
             return
 
         try:
@@ -97,7 +98,7 @@ class ImportableUploadForm(BetterForm):
             return
 
         # can the user insert?
-        if mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT] and not table_obj.canInsert(self.user):
+        if mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE] and not table_obj.canInsert(self.user):
             self._errors.setdefault("table", self.error_class()).append('You do not have permission to insert into that table!')
             cleaned_data.pop('table', None)
 
@@ -107,7 +108,7 @@ class ImportableUploadForm(BetterForm):
             cleaned_data.pop('table', None)
 
         # can the user delete?
-        if mode == ImportableUpload.DELETE and not table_obj.canDelete(self.user):
+        if mode in [ImportableUpload.DELETE, ImportableUpload.REPLACE] and not table_obj.canDelete(self.user):
             self._errors.setdefault("table", self.error_class()).append('You do not have permission to delete rows in that table!')
             cleaned_data.pop('table', None)
 
@@ -119,7 +120,7 @@ class ImportableUploadForm(BetterForm):
         schema = cleaned_data.get("schema", "")
         # don't do any validation if there are already errors, or if we're not
         # in the right mode
-        if len(self._errors) != 0 or mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT]:
+        if len(self._errors) != 0 or mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]:
             return
 
         # compare the number of columns in the table, and the csv
@@ -216,7 +217,7 @@ class ImportablePreviewForm(BetterForm):
             for i, column_name in enumerate(column_names):
                 self.fields['is_pk_%d' % (i, )] = forms.BooleanField(initial=False, required=False)
 
-        elif self.upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE]:
+        elif self.upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
             if self.upload.mode == ImportableUpload.DELETE:
                 existing_column_names = getPrimaryKeysForTable(self.upload.table.schema, self.upload.table.name)
             else:
@@ -319,7 +320,7 @@ class ImportablePreviewForm(BetterForm):
                     self._errors[k] = self.error_class(["Not a valid column name"])
                     cleaned_data.pop(k, None)
 
-        if self.upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT]:
+        if self.upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]:
             # make sure the column names match the existing table
             existing_columns = getColumnsForTable(self.upload.table.schema, self.upload.table.name)
             existing_column_names = [c['name'] for c in existing_columns]
@@ -344,7 +345,6 @@ class ImportablePreviewForm(BetterForm):
                 self.createTable(upload.table, column_names, column_types, primary_keys)
                 self.importable.importInto(
                     upload.table,
-                    column_names, 
                     column_name_to_column_index=self.mapColumnNameToColumnIndex(),
                     mode=upload.mode,
                     user=upload.user)
@@ -359,7 +359,6 @@ class ImportablePreviewForm(BetterForm):
             try:
                 self.importable.importInto(
                     upload.table,
-                    self.cleanedColumnNames(), 
                     column_name_to_column_index=self.mapColumnNameToColumnIndex(),
                     mode=upload.mode,
                     user=upload.user,
