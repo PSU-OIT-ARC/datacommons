@@ -16,7 +16,7 @@ from django.conf import settings as SETTINGS
 from django.contrib.gis import geos
 from django.db import connection, transaction, DatabaseError
 from .models import ColumnTypes, ImportableUpload, Version, TableMutator
-from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes, getColumnsForTable
+from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes, getColumnsForTable, fetchRowsFor
 from datacommons.unicodecsv import UnicodeReader
 
 class Importable(object):
@@ -78,6 +78,12 @@ class Importable(object):
 
             # execute the query string for every row
             try:
+                if mode == ImportableUpload.REPLACE:
+                    # delete every existing row
+                    rows, cols = fetchRowsFor(table.schema, table.name, pks)
+                    for row in rows:
+                        tm.deleteRow(row)
+
                 for row_i, row in enumerate(self):
                     # convert empty strings to null
                     for col_i, col in enumerate(row):

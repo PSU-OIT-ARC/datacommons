@@ -38,11 +38,10 @@ def view(request, schema_name, table_name):
     if version_id:
         version = Version.objects.get(pk=version_id) 
         rows, cols = version.fetchRows()
-        #version.restore(user=request.user)
     else:
         rows, cols = fetchRowsFor(schema_name, table_name)
 
-    versions = Version.objects.filter(table=table)
+    versions = list(Version.objects.filter(table=table))
 
     paginator = Paginator(rows, 100)
     page = request.GET.get("page")
@@ -53,6 +52,8 @@ def view(request, schema_name, table_name):
     except EmptyPage:
         rows = paginator.page(paginator.num_pages)
 
+    show_restore_link = version and version.pk != versions[-1].pk
+
     return render(request, "schemas/view.html", {
         "rows": rows,
         "cols": cols,
@@ -60,7 +61,24 @@ def view(request, schema_name, table_name):
         "table": table_name,
         "versions": versions,
         "version": version,
+        "show_restore_link": show_restore_link,
     })
+
+@login_required
+def restore(request, version_id):
+    version = Version.objects.get(pk=version_id)
+    if not version.table.canRestore(request.user):
+        raise PermissionDenied()
+
+    if request.POST:
+        version.restore(user=request.user)
+        return HttpResponseRedirect(reverse("schemas-view", args=(version.table.schema, version.table.name)))
+
+    return render(request, "schemas/restore.html", {
+        "version": version,
+        "table": version.table,
+    })
+
 
 @login_required
 def create(request):

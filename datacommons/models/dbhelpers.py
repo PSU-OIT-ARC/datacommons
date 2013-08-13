@@ -222,14 +222,18 @@ def createTable(table, column_names, column_types, primary_keys, commit=False, g
     if commit:
         transaction.commit_unless_managed()
 
-def fetchRowsFor(schema, table):
+def fetchRowsFor(schema, table, columns=None):
     """Return a 2-tuple of the rows in schema.table, and the cursor description"""
     schema = sanitize(schema)
     table = sanitize(table)
     cursor = connection.cursor()
     pks = getPrimaryKeysForTable(schema, table)
     pk_string = ",".join(pks)
-    cursor.execute('''SELECT * FROM "%s"."%s" ORDER BY %s''' % (schema, table, pk_string))
+    if columns:
+        column_str = ",".join('"%s"' % sanitize(col) for col in columns)
+    else:
+        column_str = "*"
+    cursor.execute('''SELECT %s FROM "%s"."%s" ORDER BY %s''' % (column_str, schema, table, pk_string))
     return coerceRowsAndParseColumns(cursor.fetchall(), cursor.description)
 
 def coerceRowsAndParseColumns(rows, desc):

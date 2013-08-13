@@ -73,7 +73,7 @@ class ImportableUploadForm(BetterForm):
             return
 
         if schema in self.db_meta and table not in self.db_meta[schema]:
-            self._errors.setdefault("table", self.error_class).append('Choose a table!')
+            self._errors.setdefault("table", self.error_class()).append('Choose a table!')
             # make sure the error message is displayed by removing it from
             # cleaned_data
             cleaned_data.pop('table', None)
@@ -146,9 +146,12 @@ class ImportableUploadForm(BetterForm):
         cleaned_data = super(ImportableUploadForm, self).clean()
 
         self.validate_table_choice(cleaned_data)
-        self.validate_permissions(cleaned_data)
-        self.validate_number_of_columns(cleaned_data)
-        self.validate_number_of_primary_keys(cleaned_data)
+        if not self._errors:
+            self.validate_permissions(cleaned_data)
+        if not self._errors:
+            self.validate_number_of_columns(cleaned_data)
+        if not self._errors:
+            self.validate_number_of_primary_keys(cleaned_data)
 
         return cleaned_data
 
@@ -327,13 +330,22 @@ class ImportablePreviewForm(BetterForm):
             if set(existing_column_names) != set(names):
                 raise forms.ValidationError("The columns must match the existing table")
 
+        # make sure at least one pk is defined
+        if self.upload.mode == ImportableUpload.CREATE:
+            for k, v in self.fields.items():
+                if k.startswith("is_pk"):
+                    if cleaned_data.get(k):
+                        break
+            else:
+                raise forms.ValidationError("You must specify a primary key!")
+
         return cleaned_data
 
     def createTable(self, table, column_names, column_types, primary_keys):
         createTable(table, column_names, column_types, primary_keys)
 
     def save(self, upload):
-        if upload.mode == upload.CREATE: 
+        if upload.mode == ImportableUpload.CREATE: 
             upload.table.name = self.cleaned_data['table']
             upload.table.save()
 
@@ -354,7 +366,7 @@ class ImportablePreviewForm(BetterForm):
             upload.table.created_on = datetime.datetime.now()
             upload.table.save()
 
-        elif upload.mode in [upload.APPEND, upload.UPSERT, upload.DELETE]:
+        elif upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
             # insert all the data
             try:
                 self.importable.importInto(

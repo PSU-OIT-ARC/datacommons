@@ -64,6 +64,7 @@ $(document).ready(function(){
         } else if(
             val == "{{ ImportableUpload.APPEND }}" || 
             val == "{{ ImportableUpload.UPSERT }}" ||
+            val == "{{ ImportableUpload.REPLACE }}" ||
             val == "{{ ImportableUpload.DELETE }}") {
             // appending or upserting requires the user to select a table
             // so show the select box, update the list, and show the column

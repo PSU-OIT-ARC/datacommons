@@ -26,6 +26,7 @@ urlpatterns = patterns('',
     url(r'^schema/grant/?$', schemas.grant, name="schemas-grant"),
     url(r'^schema/permissions/(\d+)/?$', schemas.permissionsDetail, name="schemas-permissions-detail"),
     url(r'^schemas/create/?$', schemas.create, name="schemas-create"),
+    url(r'^schemas/restore/(\d+)/?$', schemas.restore, name="schemas-restore"),
 
     # api
     url(r'^api/schemas/(.*)/tables/(.*)\.(.*)$', api.view, name="api-schemas-tables"),

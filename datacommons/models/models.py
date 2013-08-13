@@ -309,7 +309,7 @@ class Version(models.Model):
             print "----"
             for row in rows:
                 print row
-            raise ValueError("foo")
+            #raise ValueError("foo")
 
     def fetchRows(self):
         """Fetch all the rows in the table for this version of the table"""
@@ -386,6 +386,8 @@ class Table(models.Model):
         return self.canDo(user, TablePermission.UPDATE, perm)
     def canDelete(self, user, perm=None):
         return self.canDo(user, TablePermission.DELETE, perm)
+    def canRestore(self, user, perm=None):
+        return self.canInsert(user, perm) and self.canUpdate(user, perm) and self.canDelete(user, perm)
 
     def grant(self, user, perm_bit):
         try:

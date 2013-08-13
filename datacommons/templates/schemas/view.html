@@ -1,53 +1,60 @@
 {% extends "main.html" %}
 {% block content %}
-<h2>{{ schema }}.{{ table }}</h2>
-<p><strong>Export:</strong> <a href="{% url "api-schemas-tables" schema table 'csv' %}?version_id={{ version.pk }}">CSV</a> | 
-<a href="{% url "api-schemas-tables" schema table 'json' %}?version_id={{ version.pk }}">JSON</a></p>
 
-{% if versions %}
-    <p><strong>Previous Versions</strong>
-        {% for v in versions %}
-            <a {% if version.pk == v.pk %}style="font-weight:bold"{% endif %}href="?version_id={{ v.pk }}">{{ v.created_on|date:"M-d-Y P" }}</a> 
-        {% endfor %}
-    </p>
-{% endif %}
+<div class="row">
+    <div class="span8">
+        <h2>{{ schema }}.{{ table }}</h2>
+        <p><strong>Export:</strong> <a href="{% url "api-schemas-tables" schema table 'csv' %}?version_id={{ version.pk }}">CSV</a> | 
+        <a href="{% url "api-schemas-tables" schema table 'json' %}?version_id={{ version.pk }}">JSON</a></p>
 
-{% if version %}
-    show restore link
-{% endif %}
+        {% include '_paginator.html' with paginator=rows %}
 
-{% include '_paginator.html' with paginator=rows %}
-
-<div class="overflowed">
-    <table class="table table-striped">
-        <thead>
-            <tr>
-            {% for col in cols %}
-                <th>{{ col.name }}</th>
-            {% endfor %}
-            </tr>
-            <tr>
-            {% for col in cols %}
-                <th class="field-type">{{ col.type_label }}</th>
-            {% endfor %}
-            </tr>
-        </thead>
-        {% for row in rows %}
-            <tr>
-                {% for col in row %}
-                    <td>
-                        {% if col.geom_type %}
-                            {{ col|truncatewords:1 }}
-                        {% else %}
-                            {{ col }}
-                        {% endif %}
-                    </td>
+        <div class="overflowed">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                    {% for col in cols %}
+                        <th>{{ col.name }}</th>
+                    {% endfor %}
+                    </tr>
+                    <tr>
+                    {% for col in cols %}
+                        <th class="field-type">{{ col.type_label }}</th>
+                    {% endfor %}
+                    </tr>
+                </thead>
+                {% for row in rows %}
+                    <tr>
+                        {% for col in row %}
+                            <td>
+                                {% if col.geom_type %}
+                                    {{ col|truncatewords:1 }}
+                                {% else %}
+                                    {{ col }}
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
                 {% endfor %}
-            </tr>
-        {% endfor %}
-    </table>
+            </table>
+        </div>
+
+        {% include '_paginator.html' with paginator=rows %}
+    </div>
+
+    <div class="span4">
+        <h4>Versions</h4>
+        {% if versions %}
+            <ul>
+                {% for v in versions %}
+                    <li><a {% if version.pk == v.pk %}style="font-weight:bold"{% endif %}href="?version_id={{ v.pk }}">{{ v.created_on|date:"M-d-Y P" }}</a></li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        {% if show_restore_link %}
+            <a href="{% url 'schemas-restore' version.pk %}" class="btn btn-small btn-warning">Restore to this version</a>
+        {% endif %}
+    </div>
 </div>
-
-{% include '_paginator.html' with paginator=rows %}
-
 {% endblock %}

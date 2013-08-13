@@ -19,6 +19,8 @@ consist only of the characters <samp>a-z</samp>, <samp>0-9</samp> and <samp>_</s
         </div>
     {% endif %}
 
+    {{ form.non_field_errors }}
+
     {% if upload.mode == upload.CREATE %}
         <label>Give this table a name:</label>
         {{ form.table.errors }}
@@ -30,8 +32,6 @@ consist only of the characters <samp>a-z</samp>, <samp>0-9</samp> and <samp>_</s
     {% elif upload.mode == upload.UPSERT %}
         <h2>Insert/Update rows in {{ upload.table }}</h2>
     {% endif %}
-
-    {{ form.non_field_errors }}
 
     <div id="preview-wrapper">
         <table id="preview">

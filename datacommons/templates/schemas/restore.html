@@ -1,0 +1,14 @@
+{% extends "main.html" %}
+{% block content %}
+<h2>Restore {{ table.schema }}.{{ table.name }} to {{ version.created_on|date:"M-d-Y P" }}</h2>
+<div class="alert alert-block alert-warning">
+    Restoring a table will overwrite all data in the table, and replace it with the data from this version.
+</div>
+
+<form method="post" action="">
+    {% csrf_token %}
+    <button type="submit" name="submit" class="btn btn-warning">Restore</button>
+    <a href="{% url 'schemas-view' table.schema table.name %}?version_id={{ version.pk }}" class="btn">Cancel</a>
+</form>
+
+{% endblock %}
