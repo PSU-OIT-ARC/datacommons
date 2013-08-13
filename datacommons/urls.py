@@ -1,19 +1,22 @@
 from django.conf.urls import patterns, include, url
-from .views import home, csv, doc, schemas, api, shapefile
+from .views import csv, doc, schemas, api, shapefile, accounts
 
 # Uncomment the next two lines to enable the admin:
 from django.contrib import admin
 admin.autodiscover()
 
 urlpatterns = patterns('',
-    # Examples:
-    url(r'^$', home.index, name='home'),
+    url(r'^$', accounts.login, name='home'),
+
+    # csvs
     url(r'^csv/upload/?$', csv.upload, name='csv-upload'),
     url(r'^csv/preview/?$', csv.preview, name="csv-preview"),
 
+    # shapefiles
     url(r'^shapefile/upload/?$', shapefile.upload, name='shapefile-upload'),
     url(r'^shapefile/preview/?$', shapefile.preview, name="shapefile-preview"),
 
+    # documents
     url(r'^doc/upload/?$', doc.upload, name='doc-upload'),
     url(r'^doc/?$', doc.all, name='doc-all'),
     url(r'^doc/download/(\d+)?$', doc.download, name='doc-download'),
@@ -39,10 +42,12 @@ urlpatterns = patterns('',
     url(r'^admin/', include(admin.site.urls)),
 
     # registration
-    url(r'^register/?$', home.register, name="register"),
-    url(r'^accounts/login/?$', 'django.contrib.auth.views.login', name="login"),
-    url(r'^accounts/profile/?$', home.profile, name="profile"),
+    url(r'^register/?$', accounts.register, name="register"),
+    url(r'^accounts/login/?$', accounts.login, name="login"),
+    url(r'^accounts/profile/?$', accounts.profile, name="profile"),
     url(r'^accounts/logout/?$', 'django.contrib.auth.views.logout', {"next_page": "/"}, name="logout"),
+    url(r'^accounts/settings/?$', accounts.settings, name="settings"),
+    url(r'^accounts/password/?$', accounts.password, name="password"),
 
     # reset password
     url(r'^accounts/reset/?$', 'django.contrib.auth.views.password_reset', {"from_email": "django@pdx.edu"}),
