@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.contrib.auth import login as django_login, logout as django_logout, get_user_model
 from ..forms.accounts import LoginForm, RegistrationForm, SettingsForm, PasswordChangeForm
 
+@login_required
 def settings(request):
     if request.POST:
         form = SettingsForm(request.POST, instance=request.user)
@@ -22,6 +23,7 @@ def settings(request):
         'form': form,
     })
 
+@login_required
 def password(request):
     if request.POST:
         form = PasswordChangeForm(data=request.POST, user=request.user)
