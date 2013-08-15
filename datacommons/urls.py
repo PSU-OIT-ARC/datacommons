@@ -1,5 +1,5 @@
 from django.conf.urls import patterns, include, url
-from .views import csv, doc, schemas, api, shapefile, accounts
+from .views import csv, doc, schemas, api, shapefile, accounts, querybuilder
 
 # Uncomment the next two lines to enable the admin:
 from django.contrib import admin
@@ -20,6 +20,10 @@ urlpatterns = patterns('',
     url(r'^doc/upload/?$', doc.upload, name='doc-upload'),
     url(r'^doc/?$', doc.all, name='doc-all'),
     url(r'^doc/download/(\d+)?$', doc.download, name='doc-download'),
+
+    # query builder
+    url(r'^querybuilder/?$', querybuilder.build, name="querybuilder-build"),
+    url(r'^querybuilder/join/?$', querybuilder.join_, name="querybuilder-join"),
 
     # schemas
     url(r'^schemas/?$', schemas.all, name="schemas-all"),

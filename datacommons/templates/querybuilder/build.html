@@ -1,0 +1,239 @@
+{% extends "main.html" %}
+{% block content %}
+<h2>Query Builder</h2>
+
+<div id="tables" class="table-view-container"></div>
+
+<div id="schemata" class="schemata-view">
+    <input type="text" name="search" class="schemata-search" />
+    <div class="schemata-list">
+    </div>
+</div>
+
+
+
+<script type="text/javascript">
+function Schema(name){
+    this.name = name
+    this.tables = []
+}
+
+function Table(name, schema){
+    this.schema = schema;
+    this.name = name;
+    this.columns = [];
+}
+
+Table.prototype.fullName = function(){
+    return this.schema.name + "." + this.name;
+}
+
+function Column(name, is_pk, table){
+    this.name = name;
+    this.table = table;
+    this.is_pk = is_pk;
+}
+
+function parseSchemata(schemata){
+    var schemas = [];
+    for(var schema_name in schemata){
+        var schema = new Schema(schema_name);
+        var tables = schemata[schema_name];
+        for(var table_name in tables){
+            var table = new Table(table_name, schema);
+            var cols = tables[table_name];
+            for(var i = 0; i < cols.length; i++){
+                var col = cols[i];
+                table.columns.push(new Column(col.name, col.pk, table));
+            }
+            schema.tables.push(table);
+        }
+        schemas.push(schema);
+    }
+    return schemas;
+}
+
+SCHEMATA = {{ schemata|safe }};
+SCHEMATA = parseSchemata(SCHEMATA);
+
+function TableView(table, container){
+    this.table = table;
+    this.container = container;
+    this.element = null;
+}
+
+TableView.prototype.render = function(){
+    var html = ['<div class="table-view">'];
+    html.push('<div class="header"><span class="remove"><i class="icon-remove"></i></span> ' + this.table.fullName() + '</div>')
+    html.push('<input type="text" name="table-name" value="' + this.table.name + '" />');
+    html.push('<div class="columns">');
+    for(var i = 0; i < this.table.columns.length; i++){
+        var col = this.table.columns[i];
+        var cls = '';
+        if(col.is_pk) cls = 'primary-key';
+        html.push('<label class="checkbox ' + cls + '"><input type="checkbox" />' + col.name + '</label>');
+    }
+    html.push('</div>');
+    html.push('</div>');
+
+    this.element = $(html.join(""));
+    this.container.append(this.element);
+
+
+    // make myself draggable
+    $('.table-view').draggable({
+        'handle': '.header'
+    });
+
+    
+    this.bindEvents();
+}
+
+TableView.prototype.remove = function(){
+    this.element.hide();
+}
+
+TableView.prototype.bindEvents = function(){
+    var that = this;
+    $(this.element).find('.icon-remove').on('click', function(){
+        that.remove();
+    });
+}
+
+TableView.prototype.close = function(){
+    
+}
+
+function SchemataView(schemas, container){
+    this.container = container;
+    this.schemas = schemas;
+    this.listeners = {
+        table_dblclick: []
+    }
+
+}
+
+// event_type can be table_dblclick
+SchemataView.prototype.addListener = function(event_type, func){
+    this.listeners[event_type].push(func);
+}
+
+SchemataView.prototype.render = function(){
+    var html = ['<ul>'];
+    for(var i = 0; i < this.schemas.length; i++){
+        var schema = this.schemas[i];
+        html.push("<li class='schema-info'><span class='schema-name'><i class='icon-folder-close'></i> " + schema.name + "</span><ul class='table-list'>");
+        var tables = schema.tables;
+        for(var j = 0; j < tables.length; j++){
+            html.push("<li><i class='icon-list-alt'></i> <span class='table-name'>" + tables[j].name + "</span></li>")
+        }
+        html.push("</ul></li>");
+    }
+
+    this.container.find('.schemata-list').html(html.join(""))
+    this.collapseAllTableLists();
+    this.bindEvents();
+}
+
+SchemataView.prototype.collapseAllTableLists = function(){
+    this.container.find(".table-list").hide();
+}
+
+SchemataView.prototype.tableObjectFromDOM = function(element){
+    var table_name = $.trim($(element).text());
+    var schema_name = $.trim($(element).closest('.schema-info').find('.schema-name').text());
+    console.log(table_name, schema_name);
+    var table = this.findTableObject(schema_name, table_name);
+    return table;
+}
+
+SchemataView.prototype.findTableObject = function(schema_name, table_name){
+    // find the schema object
+    for(var i = 0; i < this.schemas.length; i++){
+        var schema = this.schemas[i];
+        if(schema.name == schema_name) break;
+    }
+
+    // now find the table object
+    for(var i = 0; i < schema.tables.length; i++){
+        var table = schema.tables[i];
+        if(table.name == table_name) return table;
+    }
+
+    return null;
+}
+
+SchemataView.prototype.bindEvents = function(){
+    // when the schema name is clicked, slide up or down the list of tables,
+    // and change the folder icon to either open or closed
+    this.container.find(".schema-name").on('click', function(){
+        var table_list = $(this).closest("li").find('.table-list');
+        var icon = $(this).find("i");
+        if(table_list.is(":visible")){
+            table_list.slideUp();
+            icon.removeClass("icon-folder-open").addClass("icon-folder-close");
+        } else {
+            table_list.slideDown();
+            icon.addClass("icon-folder-open").removeClass("icon-folder-close");
+        }
+    });
+
+    // notify the event listeners
+    var that = this;
+    this.container.on('dblclick', '.table-name', function(){
+        var listeners = that.listeners['table_dblclick'];
+        for(var i = 0; i < listeners.length; i++){
+            var listener = listeners[i];
+            var table = that.tableObjectFromDOM($(this));
+            var event = {
+                table: table,
+            }
+            listener.call(this, event);
+        }
+    });
+}
+
+$(document).ready(function(){
+    var schemata_view = new SchemataView(SCHEMATA, $('#schemata'));
+    schemata_view.render();
+
+    $('.table-view').draggable({
+        'handle': '.header'
+    });
+
+    // when a table name is clicked, add a tableview to the table views
+    schemata_view.addListener('table_dblclick', function(event){
+        var tv = new TableView(event.table, $('#tables'));
+        tv.render();
+    })
+});
+
+</script>
+
+{% comment %}
+<h3>Step 1</h3>
+<p>Choose the tables/views you want to join:</p>
+
+{% if form.errors %}
+    <div class="alert alert-error">
+        <strong>Some errors were detected!</strong> You must fix them before you can continue.
+    </div>
+{% endif %}
+
+<form method="post" action="" class="strong-labels">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for schema_name, fields in form.schemas.items %}
+        <label>{{ schema_name }}</label>
+        <div class="light-labels">
+            {% for field in fields %}
+                <label class="checkbox">{{ field }} {{ field.label }}</label>
+            {% endfor %}
+        </div>
+    {% endfor %}
+
+    <input type="submit" name="Submit" value="Continue" />
+</form>
+{% endcomment %}
+
+{% endblock %}

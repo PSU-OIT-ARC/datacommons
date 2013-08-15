@@ -21,9 +21,10 @@
                             <ul class="dropdown-menu">
                                 <li><a href="{% url "schemas-all" %}">Tables</a></li>
                                 <li><a href="{% url "doc-all" %}">Documents</a></li>
+                                <li><a href="{% url "querybuilder-build" %}">Build Query</a></li>
                             </ul>
                         </li>
-                        <li><a href="{% url "schemas-permissions" %}">Manage Permissions</a></li>
+                        <li><a href="{% url "schemas-permissions" %}">Permissions</a></li>
                         {% if user.is_staff or user.is_admin %}
                             <li><a href="{% url "schemas-create" %}">Create Schema</a></li>
                         {% endif %}

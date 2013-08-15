@@ -1,0 +1,47 @@
+{% extends "main.html" %}
+{% block content %}
+<h2>Query Builder</h2>
+
+<h3>Step 2</h3>
+<p>Choose the columns on which to join:</p>
+
+{% if form.errors %}
+    <div class="alert alert-error">
+        <strong>Some errors were detected!</strong> You must fix them before you can continue.
+    </div>
+{% endif %}
+
+<form method="post" action="" class="strong-labels">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="first">
+        {{ form.tables }}
+        {{ form.joins }}
+        {{ form.tables }}
+
+        <div class="on-condition">
+            on {{ form.cols }} = {{ form.cols }}
+        </div>
+    </div>
+    <div class="second">
+        {{ form.joins }}
+        {{ form.tables }}
+
+        <div class="on-condition">
+            on {{ form.cols }} = {{ form.cols }}
+        </div>
+    </div>
+
+
+    <input type="submit" name="Submit" value="Continue" />
+</form>
+
+<script type="text/javascript">
+$(document).ready(function(){
+    
+
+});
+</script>
+
+{% endblock %}
+

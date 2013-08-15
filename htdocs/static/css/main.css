@@ -124,6 +124,81 @@ ul.nested-checkbox {
     font-weight:bold;
 }
 
+/* stuff for the query builder */
+.schemata-view .schemata-list ul {
+    list-style-type:none;
+    margin-left:0;
+    padding-left:0;
+    font-weight:bold;
+}
+
+.schemata-view .schemata-list li ul {
+    font-weight:normal;
+    margin-left:16px;
+}
+
+.schemata-view .schema-name {
+    cursor:pointer;
+}
+
+.schemata-view .table-name {
+    cursor:pointer;
+}
+
+.schemata-view .table-name:hover {
+    text-decoration:underline;
+}
+
+.table-view {
+    border:1px solid black;
+    background-color:#fff;
+    overflow:auto;
+    display:inline-block;
+}
+
+.table-view .header {
+    font-size:11px;
+    background-color:#efefef;
+    color:#000;
+    padding:2px;
+    cursor:move;
+}
+
+.table-view .remove {
+    float:right;
+    font-family:monospace;
+    padding-left:3px;
+    cursor:pointer;
+}
+
+.table-view .columns {
+    padding-left:5px;
+}
+
+.table-view .primary-key {
+    font-weight:bold;
+}
+
+.table-view input[type='text']{
+    margin-bottom:0;
+    width:100%;
+    box-sizing:border-box;
+    border-top:none;
+    border-left:none;
+    border-right:none;
+    font-style:italic;
+}
+
+.table-view .columns label {
+    margin-bottom:0;
+}
+
+/* end querybuilder */
+
+#tables {
+    float:right;
+}
+
 /*
 html {
     background:none;

@@ -166,13 +166,94 @@ class DocUpload(models.Model):
         return u'%s' % (self.filename)
 
 class TableManager(models.Manager):
-    def groupedBySchema(self, owner):
-        tables = Table.objects.filter(owner=owner).exclude(created_on=None)
+    def groupedBySchema(self, owner=None):
+        if owner is None:
+            tables = Table.objects.exclude(created_on=None)
+        else:
+            tables = Table.objects.filter(owner=owner).exclude(created_on=None)
         results = SortedDict()
         for table in tables:
             results.setdefault(table.schema, []).append(table)
 
         return results
+
+
+class Table(models.Model):
+    table_id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=255)
+    schema = models.CharField(max_length=255)
+    created_on = models.DateTimeField(null=True, default=None)
+    #is_view = models.BooleanField(default=False, blank=True)
+
+    owner = models.ForeignKey(User, related_name="+")
+    
+    objects = TableManager()
+
+    class Meta:
+        db_table = 'table'
+        ordering = ['schema', 'name']
+
+    def __unicode__(self):
+        return u'%s' % (self.name)
+
+    def auditTableName(self):
+        return "_" + self.schema + "_" + self.name
+
+    def canDo(self, user, permission_bit, perm=None):
+        # owner can always do stuff
+        if self.owner == user:
+            return True
+
+        try:
+            if not perm:
+                perm = TablePermission.objects.get(table=self, user=user)
+        except TablePermission.DoesNotExist:
+            return False
+
+        return bool(perm.permission & permission_bit)
+
+    def canInsert(self, user, perm=None):
+        return self.canDo(user, TablePermission.INSERT, perm)
+    def canUpdate(self, user, perm=None):
+        return self.canDo(user, TablePermission.UPDATE, perm)
+    def canDelete(self, user, perm=None):
+        return self.canDo(user, TablePermission.DELETE, perm)
+    def canRestore(self, user, perm=None):
+        return self.canInsert(user, perm) and self.canUpdate(user, perm) and self.canDelete(user, perm)
+
+    def grant(self, user, perm_bit):
+        try:
+            perm = TablePermission.objects.get(table=self, user=user)
+        except TablePermission.DoesNotExist:
+            perm = TablePermission(table=self, user=user, permission=0)
+
+        perm.permission |= perm_bit
+        perm.save()
+
+    def revoke(self, user, perm_bit):
+        try:
+            perm = TablePermission.objects.get(table=self, user=user)
+        except TablePermission.DoesNotExist:
+            perm = TablePermission(table=self, user=user, permission=0)
+
+        perm.permission &= ~perm_bit
+        perm.save()
+
+        # if there are no permissions set, just delete the record
+        if perm.permission == 0:
+            perm.delete()
+
+    def permissionGrid(self):
+        perms = TablePermission.objects.filter(table=self).select_related("user")
+        rows = {}
+        for perm in perms:
+            item = rows.setdefault(perm.user, {})
+            item['can_insert'] = self.canInsert(perm.user, perm)
+            item['can_update'] = self.canUpdate(perm.user, perm)
+            item['can_delete'] = self.canDelete(perm.user, perm)
+
+        return rows
+
 
 class TableMutator(object):
     def __init__(self, version):
@@ -375,81 +456,6 @@ class Version(models.Model):
 
         return coerceRowsAndParseColumns(cursor.fetchall(), cursor.description)
 
-
-class Table(models.Model):
-    table_id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=255)
-    schema = models.CharField(max_length=255)
-    created_on = models.DateTimeField(null=True, default=None)
-
-    owner = models.ForeignKey(User, related_name="+")
-    
-    objects = TableManager()
-
-    class Meta:
-        db_table = 'table'
-        ordering = ['schema', 'name']
-
-    def __unicode__(self):
-        return u'%s' % (self.name)
-
-    def auditTableName(self):
-        return "_" + self.schema + "_" + self.name
-
-    def canDo(self, user, permission_bit, perm=None):
-        # owner can always do stuff
-        if self.owner == user:
-            return True
-
-        try:
-            if not perm:
-                perm = TablePermission.objects.get(table=self, user=user)
-        except TablePermission.DoesNotExist:
-            return False
-
-        return bool(perm.permission & permission_bit)
-
-    def canInsert(self, user, perm=None):
-        return self.canDo(user, TablePermission.INSERT, perm)
-    def canUpdate(self, user, perm=None):
-        return self.canDo(user, TablePermission.UPDATE, perm)
-    def canDelete(self, user, perm=None):
-        return self.canDo(user, TablePermission.DELETE, perm)
-    def canRestore(self, user, perm=None):
-        return self.canInsert(user, perm) and self.canUpdate(user, perm) and self.canDelete(user, perm)
-
-    def grant(self, user, perm_bit):
-        try:
-            perm = TablePermission.objects.get(table=self, user=user)
-        except TablePermission.DoesNotExist:
-            perm = TablePermission(table=self, user=user, permission=0)
-
-        perm.permission |= perm_bit
-        perm.save()
-
-    def revoke(self, user, perm_bit):
-        try:
-            perm = TablePermission.objects.get(table=self, user=user)
-        except TablePermission.DoesNotExist:
-            perm = TablePermission(table=self, user=user, permission=0)
-
-        perm.permission &= ~perm_bit
-        perm.save()
-
-        # if there are no permissions set, just delete the record
-        if perm.permission == 0:
-            perm.delete()
-
-    def permissionGrid(self):
-        perms = TablePermission.objects.filter(table=self).select_related("user")
-        rows = {}
-        for perm in perms:
-            item = rows.setdefault(perm.user, {})
-            item['can_insert'] = self.canInsert(perm.user, perm)
-            item['can_update'] = self.canUpdate(perm.user, perm)
-            item['can_delete'] = self.canDelete(perm.user, perm)
-
-        return rows
 
 class TablePermission(models.Model):
     # permissions need to be powers of 2 so we can do bitwise ANDs and ORs
