@@ -10,6 +10,15 @@
     </div>
 </div>
 
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1"
+    id="canvas"
+    style="background:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:-1;">
+    
+<line x1="0" y1="0" x2="10" y2="10" stroke-width="2" 
+    stroke="black" id="line1" />
+   
+</svg>
+
 
 
 <script type="text/javascript">
@@ -56,6 +65,41 @@ function parseSchemata(schemata){
 SCHEMATA = {{ schemata|safe }};
 SCHEMATA = parseSchemata(SCHEMATA);
 
+function ColumnView(column, container){
+    this.column = column;
+    this.container = container;
+    this.element = null;
+}
+
+ColumnView.prototype.render = function(){
+    var cls = ""
+    if(this.column.is_pk) cls = 'primary-key';
+    this.element = $('<tr><td class="column-dragger">()</td><td class="checkbox"><label><input type="checkbox" />' + this.column.name + '</label></td></tr>');
+    console.log(this.element);
+    this.container.append(this.element);
+    this.bindEvents(); 
+}
+
+ColumnView.prototype.bindEvents = function(){
+    var that = this;
+    this.element.find('.column-dragger').on('mousedown', function(e){
+        var line = $('#line1');
+        line.attr('x1', e.pageX);
+        line.attr('y1', e.pageY);
+        console.log("foo", that.element);
+        $('body').on('mousemove', function(e){
+            console.log(e.pageX, e.pageY);
+            line.attr('x2', e.pageX);
+            line.attr('y2', e.pageY);
+        });
+
+        $('body').on('mouseup', function(e){
+            $('body').unbind('mouseup mousemove');
+        });
+    });
+
+}
+
 function TableView(table, container){
     this.table = table;
     this.container = container;
@@ -66,19 +110,17 @@ TableView.prototype.render = function(){
     var html = ['<div class="table-view">'];
     html.push('<div class="header"><span class="remove"><i class="icon-remove"></i></span> ' + this.table.fullName() + '</div>')
     html.push('<input type="text" name="table-name" value="' + this.table.name + '" />');
-    html.push('<div class="columns">');
-    for(var i = 0; i < this.table.columns.length; i++){
-        var col = this.table.columns[i];
-        var cls = '';
-        if(col.is_pk) cls = 'primary-key';
-        html.push('<label class="checkbox ' + cls + '"><input type="checkbox" />' + col.name + '</label>');
-    }
+    html.push('<table class="columns"><tbody>');
+    html.push('</tbody></table>');
     html.push('</div>');
-    html.push('</div>');
-
     this.element = $(html.join(""));
     this.container.append(this.element);
 
+    var column_div = this.element.find(".columns");
+    for(var i = 0; i < this.table.columns.length; i++){
+        var cv = new ColumnView(this.table.columns[i], column_div)
+        cv.render();
+    }
 
     // make myself draggable
     $('.table-view').draggable({
