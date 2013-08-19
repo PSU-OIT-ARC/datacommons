@@ -189,11 +189,20 @@ ul.nested-checkbox {
     font-style:italic;
 }
 
-.table-view .columns label {
-    margin-bottom:0;
+.table-view { 
+    position:absolute;
+}
+
+.column-view .name:hover {
+    cursor:pointer;
+    text-decoration:underline;
 }
 
 /* end querybuilder */
+
+#query-columns {
+    float:right;
+}
 
 #tables {
     float:right;

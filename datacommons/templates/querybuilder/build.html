@@ -4,11 +4,46 @@
 
 <div id="tables" class="table-view-container"></div>
 
+<div id="query-columns" class="query-columns">
+    <table>
+        <tr>
+            <th>Field:</th>
+            <td>
+                <select name="foo"></select>
+            </td>
+        </tr>
+        <tr>
+            <th>Sort:</th>
+            <td>
+                <select name="foo">
+                    <option value="">(not sorted)</option>
+                    <option value="">Ascending</option>
+                    <option value="">Descending</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <th>Show:</th>
+            <td><input type="checkbox" /></td>
+        </tr>
+        <tr>
+            <th>Criteria:</th>
+            <td><input type="text" />
+        </tr>
+        <tr>
+            <th>or:</th>
+            <td><input type="text" />
+        </tr>
+    </table>
+
+</div>
+
 <div id="schemata" class="schemata-view">
     <input type="text" name="search" class="schemata-search" />
     <div class="schemata-list">
     </div>
 </div>
+
 
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1"
     id="canvas"
@@ -65,45 +100,180 @@ function parseSchemata(schemata){
 SCHEMATA = {{ schemata|safe }};
 SCHEMATA = parseSchemata(SCHEMATA);
 
+/*
+ * Allows objects to register callbacks for events, and lets objects broadcast
+ * events to all registered listeners.
+ * Public methods:
+ *     listenFor(string event_type_name, function callback)
+ *     broadcast(obj this_argument for callback function, string event_type_name, obj argument to pass to callback)
+ */
+var EventRegistry = {
+    listeners: {},
+    listenFor: function(type, callback){
+        var types = type.split(" ");
+        for(var i = 0; i < types.length; i++){
+            var type = types[i]; 
+            if(!(type in this.listeners)){
+                this.listeners[type] = [];
+            }
+            this.listeners[type].push(callback);
+        }
+    },
+    broadcast: function(this_arg, type, event_arg){
+        var listeners = this.listeners[type];
+        for(var i = 0; i < listeners.length; i++){
+            listeners[i].call(this_arg, event_arg);
+        }
+    }
+}
+
+/* 
+ * Generates a unique key for any view object, and allows the view to be
+ * retrieved using that key.
+ * Public methods: 
+ *     register(View object)
+ *     getViewByKey(string key)
+ */
+var ViewRegistry = {
+    key: 0,
+    registry: {},
+    register: function(view){
+        this.key++;
+        this.registry[this.key] = view;
+        return this.key;
+    },
+    getViewByKey: function(key){
+        return this.registry[key];
+    }
+}
+
+/*
+ * Adds, removes and draws the relationships between ColumnViews. 
+ * Public methods:
+ *     addRelationship(ColumnView a, ColumnView b)
+ *     removeRelationship(ColumnView)
+ *     draw()
+ */
+function RelationshipView(){
+    this.relationships = [];
+}
+
+RelationshipView.prototype.addRelationship = function(a, b){
+    this.relationships.push({
+        a: a,
+        b: b
+    });
+    this.draw();
+}
+
+RelationshipView.prototype.removeRelationship = function(view){
+    for(var i = this.relationships.length - 1; i >= 0; i--){
+        if(this.relationships[i].a == view || this.relationships[i].b == view){
+            this.relationships.splice(i, 1);
+        }
+    }
+    this.draw();
+}
+
+RelationshipView.prototype.draw = function(){
+    $('#canvas path').remove();
+    for(var i = 0; i < this.relationships.length; i++){
+        var relationship = this.relationships[i];
+        this.drawConnection(relationship.a, relationship.b);
+    }
+}
+
+RelationshipView.prototype.drawConnection = function(a, b){
+    var canvas = document.getElementById('canvas');
+    var b_offset = b.element.find(".column-dragger").offset();
+    var a_offset = a.element.find(".column-dragger").offset();
+    var a_width = a.element.closest(".table-view").width();
+    var b_width = b.element.closest(".table-view").width();
+
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    
+    var vertical_offset = 10;
+    var horizontal_offset = 20;
+
+    var line_out_of_a = "";
+    var line_into_b = "";
+    if(a_offset.left + (a_width/2) < b_offset.left + (b_width/2)){
+        // the line should start at the right side of `a`, and go to the left of `b`
+        line_out_of_a += "M" + (a_offset.left+a_width) + " " + (a_offset.top + vertical_offset);
+        line_out_of_a += " l " + horizontal_offset + " 0 ";
+
+        line_into_b += " L " + (b_offset.left - horizontal_offset) + " " + (b_offset.top + vertical_offset);
+        line_into_b += " l " + horizontal_offset + " 0 ";
+    } else {
+        // the line should start at the left side of `a`, and go to the right of `b`
+        line_out_of_a += "M" + a_offset.left + " " + (a_offset.top + vertical_offset);
+        line_out_of_a += " l " + (-horizontal_offset) + " 0 ";
+
+        line_into_b += " L " + (b_offset.left + b_width+horizontal_offset) + " " + (b_offset.top + vertical_offset);
+        line_into_b += " l " + (-horizontal_offset) + " 0 ";
+
+    }
+    var path = line_out_of_a + " " + line_into_b;
+
+    line.setAttribute("d", path);
+    line.setAttribute("stroke-width", 2);
+    line.setAttribute("stroke", 'black');
+    line.setAttribute("fill", 'none');
+    canvas.appendChild(line);
+}
+
 function ColumnView(column, container){
     this.column = column;
     this.container = container;
     this.element = null;
+    this.key = ViewRegistry.register(this);
 }
 
 ColumnView.prototype.render = function(){
     var cls = ""
     if(this.column.is_pk) cls = 'primary-key';
-    this.element = $('<tr><td class="column-dragger">()</td><td class="checkbox"><label><input type="checkbox" />' + this.column.name + '</label></td></tr>');
-    console.log(this.element);
+    this.element = $('<tr class="column-view"><td><i class="icon-resize-horizontal column-dragger" data-key="' + this.key + '"></i></td><td class="name">' + this.column.name + '</td></tr>');
     this.container.append(this.element);
     this.bindEvents(); 
+
+    $('.column-dragger').draggable({
+        appendTo: 'body',
+        helper: 'clone',
+    });
+
+    $('.column-dragger').droppable({
+        drop: function(event, ui){
+            var from = $(event.srcElement);
+            var to = $(this);
+
+            var from_key = from.data("key");
+            var to_key = to.data("key");
+
+            var from_view = ViewRegistry.getViewByKey(from_key);
+            var to_view = ViewRegistry.getViewByKey(to_key);
+
+            EventRegistry.broadcast(this, "relationship_formed", {
+                a: to_view,
+                b: from_view
+            })
+        }
+    });
+
 }
 
 ColumnView.prototype.bindEvents = function(){
     var that = this;
-    this.element.find('.column-dragger').on('mousedown', function(e){
-        var line = $('#line1');
-        line.attr('x1', e.pageX);
-        line.attr('y1', e.pageY);
-        console.log("foo", that.element);
-        $('body').on('mousemove', function(e){
-            console.log(e.pageX, e.pageY);
-            line.attr('x2', e.pageX);
-            line.attr('y2', e.pageY);
-        });
-
-        $('body').on('mouseup', function(e){
-            $('body').unbind('mouseup mousemove');
-        });
+    this.element.find('.name').on('click', function(e){
+        console.log("here");
     });
-
 }
 
 function TableView(table, container){
     this.table = table;
     this.container = container;
     this.element = null;
+    this.column_views = [];
+    this.key = ViewRegistry.register(this);
 }
 
 TableView.prototype.render = function(){
@@ -117,22 +287,27 @@ TableView.prototype.render = function(){
     this.container.append(this.element);
 
     var column_div = this.element.find(".columns");
+    this.column_views = [];
     for(var i = 0; i < this.table.columns.length; i++){
         var cv = new ColumnView(this.table.columns[i], column_div)
         cv.render();
+        this.column_views.push(cv);
     }
 
+    var that = this;
     // make myself draggable
-    $('.table-view').draggable({
-        'handle': '.header'
+    $(this.element).draggable({
+        'handle': '.header',
+        'drag': function(){ EventRegistry.broadcast(that, "drag", null) },
+        'stop': function() { EventRegistry.broadcast(that, "stop", null) }
     });
 
-    
     this.bindEvents();
 }
 
 TableView.prototype.remove = function(){
-    this.element.hide();
+    EventRegistry.broadcast(this, "closed", null);
+    this.element.remove();
 }
 
 TableView.prototype.bindEvents = function(){
@@ -142,22 +317,9 @@ TableView.prototype.bindEvents = function(){
     });
 }
 
-TableView.prototype.close = function(){
-    
-}
-
 function SchemataView(schemas, container){
     this.container = container;
     this.schemas = schemas;
-    this.listeners = {
-        table_dblclick: []
-    }
-
-}
-
-// event_type can be table_dblclick
-SchemataView.prototype.addListener = function(event_type, func){
-    this.listeners[event_type].push(func);
 }
 
 SchemataView.prototype.render = function(){
@@ -223,15 +385,11 @@ SchemataView.prototype.bindEvents = function(){
     // notify the event listeners
     var that = this;
     this.container.on('dblclick', '.table-name', function(){
-        var listeners = that.listeners['table_dblclick'];
-        for(var i = 0; i < listeners.length; i++){
-            var listener = listeners[i];
-            var table = that.tableObjectFromDOM($(this));
-            var event = {
-                table: table,
-            }
-            listener.call(this, event);
+        var table = that.tableObjectFromDOM($(this));
+        var event = {
+            table: table,
         }
+        EventRegistry.broadcast(that, "dblclick", event);
     });
 }
 
@@ -239,15 +397,33 @@ $(document).ready(function(){
     var schemata_view = new SchemataView(SCHEMATA, $('#schemata'));
     schemata_view.render();
 
-    $('.table-view').draggable({
-        'handle': '.header'
-    });
-
-    // when a table name is clicked, add a tableview to the table views
-    schemata_view.addListener('table_dblclick', function(event){
+    // when a table name is clicked in the SchemataView, add it to the page
+    EventRegistry.listenFor("dblclick", function(event){
+        if(!(this instanceof SchemataView)) return;
         var tv = new TableView(event.table, $('#tables'));
         tv.render();
-    })
+    });
+
+    var relationship_view = new RelationshipView();
+    // when a relationship is formed, add it to the view
+    EventRegistry.listenFor("relationship_formed", function(event){
+        relationship_view.addRelationship(event.a, event.b);
+    });
+    // when a tableview is dragged we need to redraw all the connections in the
+    // relationship view (since the lines need to originate from the tableview)
+    EventRegistry.listenFor("drag stop", function(event){
+        if(!(this instanceof TableView)) return;
+        relationship_view.draw();
+    });
+    // when a table is closed, we need to delete all the relationships based on
+    // it
+    EventRegistry.listenFor("closed", function(event){
+        if(!(this instanceof TableView)) return;
+        // remove all relationships based on columns in this tableview
+        for(var i = 0; i < this.column_views.length; i++){
+            relationship_view.removeRelationship(this.column_views[i]);
+        }
+    });
 });
 
 </script>
