@@ -187,6 +187,8 @@ ul.nested-checkbox {
     border-left:none;
     border-right:none;
     font-style:italic;
+    padding:0px;
+    padding-left:3px;
 }
 
 .table-view { 
@@ -199,8 +201,19 @@ ul.nested-checkbox {
     text-decoration:underline;
 }
 
+.column-view .droppable {
+    background-color:#00ff00;
+}
+
 .relationship {
     cursor:pointer;
+    stroke-width:5px;
+    stroke:black;
+    fill:none;
+}
+
+.relationship.active {
+    stroke-width:8px;
 }
 
 .query-columns-view input[type='text'],
@@ -213,10 +226,41 @@ ul.nested-checkbox {
     margin:0;
 }
 
-.query-columns-view td, .query-columns-view th {
-    border:1px solid black;
-    vertical-align:middle;
-    text-align:center;
+.query-columns-view label {
+    height:22px;
+}
+
+.query-columns-view .inner {
+    overflow-x:scroll;
+    background-color:#EBEFF2;
+}
+
+.query-columns-view .qc-row {
+    white-space:nowrap;
+    float:left;
+}
+
+.query-columns-view .qc-col {
+    float:left;
+    display:inline;
+    border-right:1px solid #999;
+    background-color:#fff;
+}
+
+.query-columns-view .qc-col-inner {
+    padding-right:5px;
+    padding-left:5px;
+}
+
+.query-columns-view .handle {
+    height:7px;
+    padding:0px;
+    background-color:#999;
+    line-height:1px;
+}
+
+.query-columns-view .totals {
+    display:none;
 }
 
 /* end querybuilder */
@@ -225,15 +269,17 @@ ul.nested-checkbox {
 #schemata {
     float:left;
     width:20%;
-    height:500px;
     overflow:auto;
-    background-color:#ff0;
+    height:500px;
 }
 
 #schemata li {
     white-space:nowrap;
 }
+
 #query-columns-container {
+    clear:both;
+    padding-top:10px;
 }
 
 #tables {
