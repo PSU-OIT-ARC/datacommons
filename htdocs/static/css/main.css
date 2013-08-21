@@ -191,6 +191,7 @@ ul.nested-checkbox {
 
 .table-view { 
     position:absolute;
+    z-index:2;
 }
 
 .column-view .name:hover {
@@ -198,14 +199,48 @@ ul.nested-checkbox {
     text-decoration:underline;
 }
 
+.relationship {
+    cursor:pointer;
+}
+
+.query-columns-view input[type='text'],
+.query-columns-view input[type='checkbox'],
+.query-columns-view select {
+    font-size:10px;
+    padding:0px;
+    width:100px;
+    height:auto;
+    margin:0;
+}
+
+.query-columns-view td, .query-columns-view th {
+    border:1px solid black;
+    vertical-align:middle;
+    text-align:center;
+}
+
 /* end querybuilder */
 
-#query-columns {
-    float:right;
+
+#schemata {
+    float:left;
+    width:20%;
+    height:500px;
+    overflow:auto;
+    background-color:#ff0;
+}
+
+#schemata li {
+    white-space:nowrap;
+}
+#query-columns-container {
 }
 
 #tables {
     float:right;
+    overflow:auto;
+    width:80%;
+    height:500px;
 }
 
 /*

@@ -1,42 +1,7 @@
 {% extends "main.html" %}
 {% block content %}
-<h2>Query Builder</h2>
-
 <div id="tables" class="table-view-container"></div>
 
-<div id="query-columns" class="query-columns">
-    <table>
-        <tr>
-            <th>Field:</th>
-            <td>
-                <select name="foo"></select>
-            </td>
-        </tr>
-        <tr>
-            <th>Sort:</th>
-            <td>
-                <select name="foo">
-                    <option value="">(not sorted)</option>
-                    <option value="">Ascending</option>
-                    <option value="">Descending</option>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <th>Show:</th>
-            <td><input type="checkbox" /></td>
-        </tr>
-        <tr>
-            <th>Criteria:</th>
-            <td><input type="text" />
-        </tr>
-        <tr>
-            <th>or:</th>
-            <td><input type="text" />
-        </tr>
-    </table>
-
-</div>
 
 <div id="schemata" class="schemata-view">
     <input type="text" name="search" class="schemata-search" />
@@ -44,17 +9,7 @@
     </div>
 </div>
 
-
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1"
-    id="canvas"
-    style="background:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:-1;">
-    
-<line x1="0" y1="0" x2="10" y2="10" stroke-width="2" 
-    stroke="black" id="line1" />
-   
-</svg>
-
-
+<div id="query-columns-container"></div>
 
 <script type="text/javascript">
 function Schema(name){
@@ -147,6 +102,47 @@ var ViewRegistry = {
     }
 }
 
+function RelationshipOptionsView(relationship){
+    this.relationship = relationship;
+}
+
+RelationshipOptionsView.prototype.render = function(){
+
+}
+
+function QueryColumnsView(container){
+    this.element = null;
+    this.container = container;
+}
+
+QueryColumnsView.prototype.render = function(){
+    var html = [];
+    html.push('<div class="query-columns-view">');
+        html.push('<table>');
+            html.push('<tr class="field-row"><th>Field:</th></tr>');
+            html.push('<tr class="sort-row"><th>Sort:</th></tr>');
+            html.push('<tr class="show-row"><th>Show:</th></tr>');
+            html.push('<tr class="criteria-row"><th>Criteria:</th></tr>');
+            html.push('<tr class="or-row"><th>or:</th></tr>');
+            html.push('<tr class="or-row"><th>&nbsp;</th></tr>');
+            html.push('<tr class="or-row"><th>&nbsp;</th></tr>');
+            html.push('<tr class="or-row"><th>&nbsp;</th></tr>');
+            html.push('<tr class="or-row"><th>&nbsp;</th></tr>');
+        html.push('</table>');
+    html.push("</div>");
+    this.element = $(html.join(""));
+    this.container.append(this.element);
+}
+
+QueryColumnsView.prototype.appendColumn = function(column_view){
+    var name = column_view.column.table.fullName() + "." + column_view.column.name;
+    this.element.find(".field-row").append($("<td><input type='text' value='" + name + "'></td>"));
+    this.element.find(".sort-row").append($("<td><select name=''><option value='none'>None</option></select></td>"));
+    this.element.find(".show-row").append($("<td><input type='checkbox' /></td>"));
+    this.element.find(".criteria-row").append($("<td><input type='text' /></td>"));
+    this.element.find(".or-row").append($("<td><input type='text' /></td>"));
+}
+
 /*
  * Adds, removes and draws the relationships between ColumnViews. 
  * Public methods:
@@ -154,8 +150,19 @@ var ViewRegistry = {
  *     removeRelationship(ColumnView)
  *     draw()
  */
-function RelationshipView(){
+function RelationshipView(container){
     this.relationships = [];
+    this.inactive_stroke_width = 5;
+    this.active_stroke_width = 10;
+    this.watching_for_keypress = false; 
+    this.container = container;
+    this.element = null;
+}
+
+RelationshipView.prototype.render = function(){
+    //var html = '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" style="background:none; width:100%; height:100%; position:relative; top:0; left:0; z-index:-1;"> </svg>'
+    //this.element = $(html);
+    //this.container.append(this.element);
 }
 
 RelationshipView.prototype.addRelationship = function(a, b){
@@ -166,9 +173,14 @@ RelationshipView.prototype.addRelationship = function(a, b){
     this.draw();
 }
 
-RelationshipView.prototype.removeRelationship = function(view){
+RelationshipView.prototype.removeRelationshipByIndex = function(index){
+    this.relationships.splice(index, 1);
+    this.draw();
+}
+
+RelationshipView.prototype.removeRelationshipsRelatedToColumnView = function(column_view){
     for(var i = this.relationships.length - 1; i >= 0; i--){
-        if(this.relationships[i].a == view || this.relationships[i].b == view){
+        if(this.relationships[i].a == column_view || this.relationships[i].b == column_view){
             this.relationships.splice(i, 1);
         }
     }
@@ -176,15 +188,16 @@ RelationshipView.prototype.removeRelationship = function(view){
 }
 
 RelationshipView.prototype.draw = function(){
-    $('#canvas path').remove();
+    $('body svg').remove();
     for(var i = 0; i < this.relationships.length; i++){
         var relationship = this.relationships[i];
-        this.drawConnection(relationship.a, relationship.b);
+        this.drawConnection(relationship.a, relationship.b, i);
     }
+
+    //this.bindEvents();
 }
 
-RelationshipView.prototype.drawConnection = function(a, b){
-    var canvas = document.getElementById('canvas');
+RelationshipView.prototype.drawConnection = function(a, b, index){
     var b_offset = b.element.find(".column-dragger").offset();
     var a_offset = a.element.find(".column-dragger").offset();
     var a_width = a.element.closest(".table-view").width();
@@ -199,27 +212,129 @@ RelationshipView.prototype.drawConnection = function(a, b){
     var line_into_b = "";
     if(a_offset.left + (a_width/2) < b_offset.left + (b_width/2)){
         // the line should start at the right side of `a`, and go to the left of `b`
-        line_out_of_a += "M" + (a_offset.left+a_width) + " " + (a_offset.top + vertical_offset);
-        line_out_of_a += " l " + horizontal_offset + " 0 ";
+        var start_x = a_offset.left+a_width;
+        var start_y = a_offset.top + vertical_offset;
 
-        line_into_b += " L " + (b_offset.left - horizontal_offset) + " " + (b_offset.top + vertical_offset);
-        line_into_b += " l " + horizontal_offset + " 0 ";
+        var end_x = b_offset.left;
+        var end_y = b_offset.top + vertical_offset
+
+        //line_out_of_a += "M" + (a_offset.left+a_width) + " " + (a_offset.top + vertical_offset);
+        //line_out_of_a += " l " + horizontal_offset + " 0 ";
+
+        //line_into_b += " L " + (b_offset.left - horizontal_offset) + " " + (b_offset.top + vertical_offset);
+        //line_into_b += " l " + horizontal_offset + " 0 ";
     } else {
         // the line should start at the left side of `a`, and go to the right of `b`
-        line_out_of_a += "M" + a_offset.left + " " + (a_offset.top + vertical_offset);
-        line_out_of_a += " l " + (-horizontal_offset) + " 0 ";
+        var start_x = a_offset.left;
+        var start_y = a_offset.top + vertical_offset;
 
-        line_into_b += " L " + (b_offset.left + b_width+horizontal_offset) + " " + (b_offset.top + vertical_offset);
-        line_into_b += " l " + (-horizontal_offset) + " 0 ";
+        var end_x = b_offset.left + b_width;
+        var end_y = b_offset.top + vertical_offset;
 
+        //line_out_of_a += "M" + a_offset.left + " " + (a_offset.top + vertical_offset);
+        //line_out_of_a += " l " + (-horizontal_offset) + " 0 ";
+
+        //line_into_b += " L " + (b_offset.left + b_width+horizontal_offset) + " " + (b_offset.top + vertical_offset);
+        //line_into_b += " l " + (-horizontal_offset) + " 0 ";
     }
-    var path = line_out_of_a + " " + line_into_b;
+    //var path = line_out_of_a + " " + line_into_b;
+    var top = Math.min(start_y, end_y);
+    var left = Math.min(start_x, end_x);
+    var width = Math.abs(start_x - end_x);
+    var height = Math.abs(start_y - end_y);
+
+    var canvas = $('<svg xmlns="http://www.w3.org/2000/svg" pointer-events="none" version="1.1" style="background:none; position:absolute; top:0; left:0; "> </svg>');
+    var padding = 30;
+    canvas.css({
+        top: top-padding,
+        left: left-padding,
+        width: width + padding*2,
+        height: height + padding*2
+    });
+
+    var z_shape = (a_offset.left + a_width/2 < b_offset.left + b_width/2) && (a_offset.top < b_offset.top)
+                  ||
+                 (b_offset.left + b_width/2 < a_offset.left + a_width/2) && (b_offset.top < a_offset.top)
+
+    if(z_shape){
+        var path = "M " + padding + " " + padding + " l " + horizontal_offset + " 0 l " + (width-horizontal_offset*2) + " " + (height) + " l " + horizontal_offset + " 0 ";
+        console.log("zshape");
+    } else {
+        var path = "M " + padding + " " + (padding+height) + " l " + horizontal_offset + " 0 l " + (width-horizontal_offset*2) + " " + (-height) + " l " + horizontal_offset + " 0 ";
+        //var path = "M 0 " + height + " L " + width + " 0 ";
+        console.log("sshape");
+    }
 
     line.setAttribute("d", path);
-    line.setAttribute("stroke-width", 2);
+    line.setAttribute("stroke-width", this.inactive_stroke_width);
     line.setAttribute("stroke", 'black');
     line.setAttribute("fill", 'none');
-    canvas.appendChild(line);
+    line.setAttribute("class", "relationship");
+    line.setAttribute("data-index", index);
+    line.setAttribute("pointer-events", "stroke");
+    canvas.get()[0].appendChild(line);
+
+    $('body').append(canvas);
+}
+
+RelationshipView.prototype.setActiveRelationship = function(line_element){
+    // reset the stroke width on all other lines
+    this.element.find(".relationship").attr("stroke-width", this.inactive_stroke_width)
+    // reset the `data-active` attribute on ll the lines
+    this.element.find(".relationship").attr("data-active", "0");
+
+    if(line_element){
+        // set the stroke width, and data-active attribute on the active line
+        $(line_element).attr('stroke-width', this.active_stroke_width);
+        $(line_element).attr('data-active', "1");
+    }
+}
+
+RelationshipView.prototype.bindEvents = function(){
+    var that = this;
+    // this prevents text from being highlighted on the dblclick 
+    // (http://stackoverflow.com/questions/880512/prevent-text-selection-after-double-click)
+    this.element.find(".relationship").on('mousedown', function(e){ e.preventDefault() });
+
+    // bind to the body element (making sure we only do it once), and watch for
+    // DEL key presses. When the DEL key is pressed, and we have an active
+    // relationship (i.e. the user clicked on a line), we delete the relationship
+    if(!this.watching_for_keypress){
+        $('body').bind("keydown", function(e){
+            if(e.keyCode != 46) return; // only watch for the DEL key
+            // delete the active relationship (if there is one)
+            // find the active element
+            var active_element = this.element.find(".relationship[data-active='1']");
+            if(active_element.length == 1){
+                var index = active_element.attr("data-index");
+                that.removeRelationshipByIndex(index);
+            }
+        });
+
+        // when something is clicked, reset the activate relationship
+        $('body').bind("click", function(e){
+            that.setActiveRelationship(null);
+        });
+
+        this.watching_for_keypress = true;
+    }
+
+    // when a relationship is clicked set it as the active one
+    this.element.find(" .relationship").on('click', function(e){ 
+        that.setActiveRelationship(this);
+        // prevent the body.click event from firing (since that will deactivate
+        // the active line)
+        e.stopPropagation();
+    });
+
+    // when the relationship is dblclicked, inform the event registry 
+    this.element.find(".relationship").on('dblclick', function(e){
+        var index = parseInt($(this).data("index"), 10);
+        var relationship = that.relationships[index];
+        EventRegistry.broadcast(that, "dblclick", {
+            relationship: relationship
+        });
+    });
 }
 
 function ColumnView(column, container){
@@ -239,6 +354,7 @@ ColumnView.prototype.render = function(){
     $('.column-dragger').draggable({
         appendTo: 'body',
         helper: 'clone',
+        zIndex: 3
     });
 
     $('.column-dragger').droppable({
@@ -258,13 +374,14 @@ ColumnView.prototype.render = function(){
             })
         }
     });
-
 }
 
 ColumnView.prototype.bindEvents = function(){
     var that = this;
-    this.element.find('.name').on('click', function(e){
-        console.log("here");
+    this.element.find('.name').on('dblclick', function(e){
+        EventRegistry.broadcast(that, 'dblclick', {
+
+        });
     });
 }
 
@@ -404,7 +521,8 @@ $(document).ready(function(){
         tv.render();
     });
 
-    var relationship_view = new RelationshipView();
+    var relationship_view = new RelationshipView($('#tables'));
+    relationship_view.render();
     // when a relationship is formed, add it to the view
     EventRegistry.listenFor("relationship_formed", function(event){
         relationship_view.addRelationship(event.a, event.b);
@@ -421,8 +539,20 @@ $(document).ready(function(){
         if(!(this instanceof TableView)) return;
         // remove all relationships based on columns in this tableview
         for(var i = 0; i < this.column_views.length; i++){
-            relationship_view.removeRelationship(this.column_views[i]);
+            relationship_view.removeRelationshipsRelatedToColumnView(this.column_views[i]);
         }
+    });
+    // when a relationship is dblclicked we want to display a modal options dialog window
+    EventRegistry.listenFor("dblclick", function(event){
+        if(!(this instanceof RelationshipView)) return;
+        console.log(event.relationship);
+    });
+
+    var query_columns_view = new QueryColumnsView($('#query-columns-container'));
+    query_columns_view.render();
+    EventRegistry.listenFor("dblclick", function(event){
+        if(!(this instanceof ColumnView)) return;
+        query_columns_view.appendColumn(this);
     });
 });
 
