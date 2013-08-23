@@ -216,6 +216,13 @@ ul.nested-checkbox {
     stroke-width:8px;
 }
 
+.relationship-arrow {
+    cursor:pointer;
+    stroke-width:5px;
+    stroke:black;
+    fill:none;
+}
+
 .query-columns-view input[type='text'],
 .query-columns-view input[type='checkbox'],
 .query-columns-view select {

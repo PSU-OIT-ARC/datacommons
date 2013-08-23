@@ -97,17 +97,16 @@ var ViewRegistry = {
     }
 }
 
-function RelationshipOptionsView(relationship){
-    this.relationship = relationship;
-}
-
-RelationshipOptionsView.prototype.render = function(){
-
-}
-
 /*
  * This view allows a user to pick out the fields, sorting options, and
  * criteria for the query.
+ * Public methods:
+ *     this(jquery dom element: container) -- inits the view
+ *     renderTotals() -- shows or hides the "Total" row on the view
+ *     toggleTotals() -- toggles the state of the "Total" row on the view
+ *     toSQL(any object)() -- converts the current state of the view into fragments of a SQL statement
+ *     render() -- Renders the view on the page
+ *     appendColumn(ColumnView) -- Adds a column to the view
  */
 function QueryColumnsView(container){
     this.element = null;
@@ -128,7 +127,8 @@ QueryColumnsView.prototype.toggleTotals = function(){
     this.renderTotals();
 }
 
-QueryColumnsView.prototype.toSQL = function(){
+QueryColumnsView.prototype.toSQL = function(sql){
+    sql = sql || {}
     var cols = this.element.find('.qc-col-inner');
     var cols_info = []
     for(var i = 0; i < cols.length; i++){
@@ -152,7 +152,10 @@ QueryColumnsView.prototype.toSQL = function(){
         })
     }
 
-    var sql = {select: [], order_by: [], where: [], group_by: []}
+    sql.select = [];
+    sql.order_by = [];
+    sql.where = [];
+    sql.group_by = [];
     for(var i = 0; i < cols_info.length; i++){
         var col_info = cols_info[i];
         var name = col_info.name;
@@ -180,19 +183,6 @@ QueryColumnsView.prototype.toSQL = function(){
     }
 
     return sql;
-
-    /*
-    var sql_string = "SELECT " + sql.select.join(", ");
-    if(sql.where.length){
-        sql_string += " WHERE " + sql.where.join(" AND ");
-    }
-    if(sql.group_by.length){
-        sql_string += " GROUP BY " + sql.group_by.join(", ");
-    }
-    if(sql.order_by.length){
-        sql_string += " ORDER BY " + sql.order_by.join(", ");
-    }*/
-    console.log(sql_string);
 }
 
 QueryColumnsView.prototype.render = function(){
@@ -213,6 +203,7 @@ QueryColumnsView.prototype.render = function(){
                         + '<label>&nbsp;</label>' 
                         + '<label>&nbsp;</label>' 
                         + '<label>&nbsp;</label>'
+                        + '<label>&nbsp;</label>'
                     + '</div>'
                 + '</div>'
             + '</div>'
@@ -220,6 +211,9 @@ QueryColumnsView.prototype.render = function(){
     );
     this.element = $(html.join(""));
     this.container.append(this.element);
+    this.element.on('click', '.icon-remove', function(){
+        $(this).closest('.qc-col').remove();
+    });
 }
 
 QueryColumnsView.prototype.appendColumn = function(column_view){
@@ -251,6 +245,7 @@ QueryColumnsView.prototype.appendColumn = function(column_view){
                 + "<label><input type='text' class='qc-criteria' /></label>"
                 + "<label><input type='text' class='qc-criteria' /></label>"
                 + "<label><input type='text' class='qc-criteria' /></label>"
+                + "<label style='text-align:center'><i class='icon-remove'></i></label>"
             + "</div>"
         + "</div>")
     this.element.find(".qc-row").append(html.join(""))
@@ -264,30 +259,37 @@ QueryColumnsView.prototype.appendColumn = function(column_view){
     this.renderTotals();
 }
 
-/* stupid? 
-WHITE = 0
-GRAY = 1
-BLACK = 2
-
+/* The following is used to perform topological sort */
 function Node(payload){
     this.edges = []
-    this.color = WHITE;
-    this.f = 0;
-    this.d = 0;
     this.payload = payload;
 }
 
-function DFS(nodes){
+function topologicalSort(nodes){
+    var WHITE = 0
+    var GRAY = 1
+    var BLACK = 2
+
+    var visit = function(node, linked){
+        node.color = GRAY
+        for(var i = 0; i < node.edges.length; i++){
+            if(node.edges[i].color == WHITE){
+                visit(node.edges[i], linked)
+            }
+        }
+        node.color = BLACK;
+        linked.push(node)
+    }
+
     var linked = []
     for(var i = 0; i < nodes.length; i++){
         nodes[i].color = WHITE;
     }
 
-    var time = 0;
     for(var i = 0; i < nodes.length; i++){
         var node = nodes[i];
         if(node.color == WHITE){
-            time = DFS_VISIT(node, linked, time);
+            visit(node, linked);
         }
     }
 
@@ -295,37 +297,22 @@ function DFS(nodes){
     return linked;
 }
 
-function DFS_VISIT(node, linked, time){
-    time = time + 1
-    node.d = time
-    node.color = GRAY
-    for(var i = 0; i < node.edges.length; i++){
-        if(node.edges[i].color == WHITE){
-            time = DFS_VISIT(node.edges[i], linked, time)
-        }
-    }
-    node.color = BLACK;
-    time = time + 1
-    node.f = time
-    linked.push(node)
-    return time;
-}
-*/
-
 /*
  * Adds, removes and draws the relationships between ColumnViews. 
  * Public methods:
  *     render() -- render the view
- *     addRelationship(ColumnView a, ColumnView b, type="inner" | "left" | "right")
+ *     addRelationship(ColumnView a, ColumnView b, type="INNER" | "LEFT" | "RIGHT")
  *     removeRelationshipsRelatedToColumnView(ColumnView)
  *     redrawRelationshipsRelatedTo(TableView)
+ *     toSQL(sql) -- Build a from clause based on the relationships, and add it to the SQL object as the `from` property
  */
 function RelationshipView(container){
     this.relationships = [];
     this.container = container;
 }
 
-RelationshipView.prototype.toSQL = function(){
+RelationshipView.prototype.toSQL = function(sql){
+    sql = sql || {}
     // get a list of tables to be joined together
     var tables = [];
     // don't be hating on on O(n*m) algorithm
@@ -341,8 +328,78 @@ RelationshipView.prototype.toSQL = function(){
         }
     }
 
-    //for(var i = 0; i < 
-    //console.log(
+    // build a list of nodes, where each table is a node, and a relationship is an edge
+    var nodes = {}
+    for(var i = 0; i < tables.length; i++){
+        var node = new Node(tables[i]);
+        nodes[node.payload.key] = node;
+    }
+    // build a list of edges based on all the relationships
+    for(var i = 0; i < this.relationships.length; i++){
+        var rel = this.relationships[i];
+        var a_node = nodes[rel.a.table_view.key];
+        var b_node = nodes[rel.b.table_view.key];
+        if(a_node.edges.indexOf(b_node) == -1){
+            a_node.edges.push(b_node)
+        }
+    }
+    var node_list = [];
+    for(var i = 0; i < tables.length; i++){
+        node_list.push(nodes[tables[i].key]);
+    }
+    node_list = topologicalSort(node_list); 
+    tables = []
+    for(var i = 0; i < node_list.length; i++){
+        tables.push(node_list[i].payload);
+    }
+
+    var included_tables = {}
+    included_tables[tables[0].key] = true;
+
+    // add the first table to the list of included tables, clone the list of
+    // relationships (so we can modify the list)
+    sql.from = tables[0].table.name + " ";
+
+    var relationships = this.relationships.slice(0); 
+    // order the relationships by the position of the table in the list
+    var table_order = {};
+    for(var i = 0; i < tables.length; i++){
+        table_order[tables[i].key] = i;
+    }
+    relationships.sort(function(rel_a, rel_b){
+        var a_index = Math.max(table_order[rel_a.a.table_view.key], table_order[rel_a.b.table_view.key]);
+        var b_index = Math.max(table_order[rel_b.a.table_view.key], table_order[rel_b.b.table_view.key]);
+        return a_index - b_index;
+    });
+
+    for(var i = 1; i < tables.length; i++){
+        // add this table to our list of included tables
+        included_tables[tables[i].key] = true;
+        var is_first_join = true;
+        var join_conditions = []
+        // find all the relationships that can be added with these tables. Loop
+        // in reverse, since we delete elements from the list
+        for(var j = relationships.length-1; j >= 0; j--){
+            var rel = relationships[j]; 
+            // can this relationship be formed by the included tables?
+            if(!(rel.a.table_view.key in included_tables && rel.b.table_view.key in included_tables))
+                continue
+
+            // add in the join (making sure we only do this once)
+            if(is_first_join){
+                is_first_join = false;
+                sql.from += rel.type + " JOIN " + tables[i].table.name + " ON ";
+            }
+            
+            // add this relationship to the join condition for this table,
+            // and then remove it
+            join_conditions.push(rel.a.column.name + " = " + rel.b.column.name);
+            relationships.splice(j, 1);
+        }
+        // form the on clause
+        sql.from += join_conditions.join(" AND ") + " ";
+    }
+    return sql;
 }
 
 RelationshipView.prototype.render = function(){
@@ -360,7 +417,7 @@ RelationshipView.prototype.addRelationship = function(a, b, type){
         b: b,
         line: null,
         canvas: null,
-        type: type || "inner"
+        type: type || "INNER"
     }
     this.relationships.push(relationship);
     this.drawConnection(relationship, this.relationships.length - 1);
@@ -404,23 +461,52 @@ RelationshipView.prototype.drawConnection = function(relationship){
     var a_width = a.element.closest(".table-view").width();
     var b_width = b.element.closest(".table-view").width();
 
+    // we need to bump the line down just a bit so that it is aligned with the
+    // middle of the column name text
     var vertical_offset = 10;
     var horizontal_offset = 20;
+    /*      +--+---------------- this distance is the horizontal_offset of the line
+     * +---+|  |    
+     * |   |----\   
+     * | A |     \  
+     * |   |      \     +---+
+     * +---+       \----|   |
+     *                  | B |
+     *                  |   |
+     *                  +---+
+     */
 
+    // based on the type of join, AND the order of the tables, the join arrow
+    // point "LEFT" or "RIGHT" (or be the empty string in the case of INNER joins
+    var join_arrow = "";
     if((a_offset.left + (a_width/2)) < (b_offset.left + (b_width/2))){
-        // the line should start at the right side of `a`, and go to the left of `b`
+        // the line connecting columns `a` and `b` should start at the right
+        // side of `a`, and go to the left of `b`
         var start_x = a_offset.left+a_width;
         var start_y = a_offset.top + vertical_offset;
 
         var end_x = b_offset.left;
         var end_y = b_offset.top + vertical_offset
+
+        if(relationship.type == "LEFT"){
+            join_arrow = "RIGHT";
+        } else if(relationship.type == "RIGHT") {
+            join_arrow = "LEFT";
+        } 
     } else {
-        // the line should start at the left side of `a`, and go to the right of `b`
+        // the line connecting columns `a` and `b` should start at the left
+        // side of `a`, and go to the right of `b`
         var start_x = a_offset.left;
         var start_y = a_offset.top + vertical_offset;
 
         var end_x = b_offset.left + b_width;
         var end_y = b_offset.top + vertical_offset;
+
+        if(relationship.type == "LEFT"){
+            join_arrow = "LEFT";
+        } else if(relationship.type == "RIGHT") {
+            join_arrow = "RIGHT";
+        } 
     }
 
     var top = Math.min(start_y, end_y);
@@ -434,10 +520,19 @@ RelationshipView.prototype.drawConnection = function(relationship){
         relationship.canvas = $('<svg xmlns="http://www.w3.org/2000/svg" pointer-events="none" version="1.1" style="background:none; position:absolute; top:0; left:0; "> </svg>');
         relationship.line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         relationship.canvas.get()[0].appendChild(relationship.line);
+        relationship.line.setAttribute("class", "relationship");
+        relationship.line.setAttribute("pointer-events", "stroke");
         this.container.append(relationship.canvas);
         this.bindLineEvents(relationship.line);
+
+        // add the line elements for the arrows
+        relationship.arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        relationship.canvas.get()[0].appendChild(relationship.arrow);
+        relationship.arrow.setAttribute("class", "relationship-arrow");
     }
 
+    // because of the stroke of the line, and the arrow, we need to pad the
+    // canvas a little bit all around
     var padding = 30;
     relationship.canvas.css({
         top: top-padding,
@@ -446,6 +541,8 @@ RelationshipView.prototype.drawConnection = function(relationship){
         height: height + padding*2
     });
 
+    // there are four types of lines that can be drawn to form the connection
+    // between the two columns
     var z_shape = (a_offset.left + a_width < b_offset.left) && (a_offset.top < b_offset.top)
                   ||
                   (b_offset.left + b_width < a_offset.left) && (b_offset.top < a_offset.top)
@@ -458,6 +555,9 @@ RelationshipView.prototype.drawConnection = function(relationship){
                         ||
                         (b_offset.left + b_width/2 < a_offset.left+a_width/2) && (b_offset.top < a_offset.top)
 
+    // s_shape_inner (this is the only other case so we don't need to calculate it)
+
+    // define the path for the correct type of line
     if(z_shape){
         var path = "M " + padding + " " + padding + " l " + horizontal_offset + " 0 l " + (width-horizontal_offset*2) + " " + (height) + " l " + horizontal_offset + " 0 ";
     } else if(s_shape){
@@ -469,18 +569,58 @@ RelationshipView.prototype.drawConnection = function(relationship){
     }
 
     relationship.line.setAttribute("d", path);
-    relationship.line.setAttribute("class", "relationship");
-    relationship.line.setAttribute("pointer-events", "stroke");
+
+    // now form the arrow on the line if applicable. This code just defines the
+    // starting point of the arrow
+    var path = "";
+    if(z_shape){
+        if(join_arrow == "LEFT"){
+            var path = "M " + padding + " " + padding + " ";
+        } else if(join_arrow == "RIGHT"){
+            var path = "M " + (padding+width) + " " + (height+padding)
+        }
+    } else if(z_shape_inner){
+        if(join_arrow == "LEFT"){
+            var path = "M " + (padding+width) + " " + padding
+        } else if(join_arrow == "RIGHT"){
+            var path = "M " + (padding) + " " + (height+padding);
+        }
+    } else if(s_shape){
+        if(join_arrow == "LEFT"){
+            var path = "M " + padding + " " + (height+padding);
+        } else if(join_arrow == "RIGHT"){
+            var path = "M " + (width+padding) + " " + padding;
+        }
+    } else { // s_shape_inner
+        if(join_arrow == "LEFT"){
+            var path = "M " + (padding + width) + " " + (height+padding)
+        } else if(join_arrow == "RIGHT"){
+            var path = "M " + (padding) + " " + padding;
+        }
+    }
+
+    // this appends the path of the arrow to the starting position
+    if(join_arrow == "LEFT"){ 
+        path += " l 10 10 m -10 -10 l 10 -10 ";
+    } else if(join_arrow == "RIGHT"){
+        path += " l -10 -10 m 10 10 l -10 10 ";
+    } else {
+        // in the case of INNER joins, move the arrow out of the viewable area
+        path = "M -100 -100";
+    }
+
+    relationship.arrow.setAttribute("d", path);
 }
 
 RelationshipView.prototype.setActiveRelationship = function(line_element){
+    // find the active line element, and reset the class back to just "relationship"
     var active = this.container.find(".relationship.active").get()
     if(active.length > 0){ 
         active[0].setAttribute("class", "relationship");
     }
 
     if(line_element){
-        // set the stroke width, and data-active attribute on the active line
+        // add the active class to the line element
         line_element.setAttribute("class", "relationship active");
     }
 }
@@ -500,18 +640,24 @@ RelationshipView.prototype.bindLineEvents = function(line){
         e.stopPropagation();
     });
 
-    // when the relationship is dblclicked, inform the event registry 
     line.on('dblclick', function(e){
         // find the relationship that was clicked
         var index = that.getIndexOfLine(this);
         var relationship = that.relationships[index];
+        // when the relationship is dblclicked, inform the event registry 
         EventRegistry.broadcast(that, "dblclick", {
             relationship: relationship
         });
+
+        // toggle the direction of the join (which will require a redraw)
+        var join = ["INNER", "LEFT", "RIGHT"];
+        relationship.type = join[(join.indexOf(relationship.type)+1) % join.length];
+        that.drawConnection(relationship);
     });
 }
 
 RelationshipView.prototype.getIndexOfLine = function(line){
+    // given a dom line element, find the relationship that it belongs to
     for(var i = 0; i < this.relationships.length; i++){
         if(this.relationships[i].line == line) return i;
     }
@@ -523,24 +669,32 @@ RelationshipView.prototype.bindEvents = function(relationship){
     // bind to the body element and watch for
     // DEL key presses. When the DEL key is pressed, and we have an active
     // relationship (i.e. the user clicked on a line), we delete the relationship
+    var keys_to_watch = [46];
     $('body').bind("keydown", function(e){
-        if(e.keyCode != 46) return; // only watch for the DEL key
-        // delete the active relationship (if there is one)
-        // find the active element
+        if(keys_to_watch.indexOf(e.keyCode) == -1) return; // only watch for defined keys
+        e.preventDefault();
         var active_element = that.container.find(".relationship.active");
-        if(active_element.length == 1){
-            var index = that.getIndexOfLine(active_element.get(0));
-            console.log(index);
+        if(active_element.length != 1) return;
+        var index = that.getIndexOfLine(active_element.get(0));
+
+        if(e.keyCode == 46){
+            // delete the active relationship (if there is one)
+            // find the active element
             that.removeRelationshipByIndex(index);
         }
     });
 
-    // when something is clicked, reset the activate relationship
+    // when something is clicked, set the active relationship to nothing
     $('body').bind("click", function(e){
         that.setActiveRelationship(null);
     });
 }
 
+/* This is a row in a TableView that represents a column in the TableView 
+ * Public methods:
+ *     this(Column, some_dom element to append this column view to, TableView)
+ *     render() -- draw the ColumnView
+ */
 function ColumnView(column, container, table_view){
     this.column = column;
     this.container = container;
@@ -702,7 +856,6 @@ SchemataView.prototype.collapseAllTableLists = function(){
 SchemataView.prototype.tableObjectFromDOM = function(element){
     var table_name = $.trim($(element).text());
     var schema_name = $.trim($(element).closest('.schema-info').find('.schema-name').text());
-    console.log(table_name, schema_name);
     var table = this.findTableObject(schema_name, table_name);
     return table;
 }
