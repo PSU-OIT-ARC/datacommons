@@ -78,6 +78,29 @@ var EventRegistry = {
 }
 
 /* 
+ */
+var NameRegistry = {
+    names: {},
+    getNameAndRegisterIt: function(name){
+        var name = this.findUnambiguousName(name);
+        this.names[name] = true;
+        return name;
+    },
+    findUnambiguousName: function(name){
+        if(!(name in this.names)) return name
+        var suffix = 1;
+        var new_name = name + "_" + suffix
+        while(new_name in this.names){
+            new_name = name + "_" + (++suffix)
+        }
+        return new_name;
+    },
+    unregister: function(name){
+        delete this.names[name];
+    }
+}
+
+/* 
  * Generates a unique key for any view object, and allows the view to be
  * retrieved using that key.
  * Public methods: 
@@ -182,6 +205,8 @@ QueryColumnsView.prototype.toSQL = function(sql){
         }
     }
 
+    if(sql.select.length == 0) sql.select = ["*"];
+
     return sql;
 }
 
@@ -217,7 +242,7 @@ QueryColumnsView.prototype.render = function(){
 }
 
 QueryColumnsView.prototype.appendColumn = function(column_view){
-    var name = column_view.column.table.fullName() + "." + column_view.column.name;
+    var name = column_view.table_view.name + "." + column_view.column.name;
     var html = [];
     html.push(
         "<div class='qc-col'>" 
@@ -313,6 +338,7 @@ function RelationshipView(container){
 
 RelationshipView.prototype.toSQL = function(sql){
     sql = sql || {}
+    if(this.relationships.length == 0) return sql;
     // get a list of tables to be joined together
     var tables = [];
     // don't be hating on on O(n*m) algorithm
@@ -358,7 +384,7 @@ RelationshipView.prototype.toSQL = function(sql){
 
     // add the first table to the list of included tables, clone the list of
     // relationships (so we can modify the list)
-    sql.from = tables[0].table.name + " ";
+    sql.from = tables[0].table.fullName() + " AS " + tables[0].name + " ";
 
     var relationships = this.relationships.slice(0); 
     // order the relationships by the position of the table in the list
@@ -369,11 +395,13 @@ RelationshipView.prototype.toSQL = function(sql){
     relationships.sort(function(rel_a, rel_b){
         var a_index = Math.max(table_order[rel_a.a.table_view.key], table_order[rel_a.b.table_view.key]);
         var b_index = Math.max(table_order[rel_b.a.table_view.key], table_order[rel_b.b.table_view.key]);
+        console.log(a_index, b_index);
         return a_index - b_index;
     });
 
     for(var i = 1; i < tables.length; i++){
         // add this table to our list of included tables
+        var table = tables[i];
         included_tables[tables[i].key] = true;
         var is_first_join = true;
         var join_conditions = []
@@ -388,14 +416,15 @@ RelationshipView.prototype.toSQL = function(sql){
             // add in the join (making sure we only do this once)
             if(is_first_join){
                 is_first_join = false;
-                sql.from += rel.type + " JOIN " + tables[i].table.name + " ON ";
+                sql.from += rel.type + " JOIN " + table.table.fullName() + " AS " + table.name + " ON ";
             }
             
             // add this relationship to the join condition for this table,
             // and then remove it
-            join_conditions.push(rel.a.column.name + " = " + rel.b.column.name);
+            join_conditions.push(rel.a.table_view.name + "." + rel.a.column.name + " = " + rel.b.table_view.name + "." + rel.b.column.name);
             relationships.splice(j, 1);
         }
+
         // form the on clause
         sql.from += join_conditions.join(" AND ") + " ";
     }
@@ -773,6 +802,7 @@ function TableView(table, container){
     this.element = null;
     this.column_views = [];
     this.key = ViewRegistry.register(this);
+    this.name = NameRegistry.getNameAndRegisterIt(table.name);
 }
 
 TableView.prototype.render = function(){
@@ -781,7 +811,7 @@ TableView.prototype.render = function(){
             + '<div class="header">'
                 + '<span class="remove"><i class="icon-remove"></i></span> ' + this.table.fullName() 
             + '</div>'
-            + '<input type="text" name="table-name" value="' + this.table.name + '" />'
+            + '<input type="text" name="table-name" value="' + this.name + '" />'
             + '<table class="columns"><tbody></tbody></table>'
         + '</div>'];
     this.element = $(html.join(""));
@@ -808,6 +838,7 @@ TableView.prototype.render = function(){
 
 TableView.prototype.remove = function(){
     EventRegistry.broadcast(this, "closed", null);
+    NameRegistry.unregister(this.name);
     this.element.remove();
 }
 

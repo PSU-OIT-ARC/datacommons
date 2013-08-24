@@ -23,12 +23,22 @@ SCHEMATA = parseSchemata(SCHEMATA);
 $(document).ready(function(){
     var schemata_view = new SchemataView(SCHEMATA, $('#schemata'));
     schemata_view.render();
+    
+    var stack_height = 0;
 
     // when a table name is clicked in the SchemataView, add it to the page
     EventRegistry.listenFor("click", function(event){
         if(!(this instanceof SchemataView)) return;
         var tv = new TableView(event.table, $('#tables'));
         tv.render();
+        var offset = tv.element.offset()
+        // do a window cascade based on the stack_height
+        tv.element.css({
+            left: offset.left + 10*stack_height,
+            top: offset.top + 10*stack_height
+        })
+        tv.moved = false;
+        stack_height++;
     });
 
     var relationship_view = new RelationshipView($('#tables'));
@@ -42,6 +52,8 @@ $(document).ready(function(){
     EventRegistry.listenFor("drag stop", function(event){
         if(!(this instanceof TableView)) return;
         relationship_view.redrawRelationshipsRelatedTo(this);
+        if(!this.moved) stack_height--;
+        this.moved = true;
     });
     // when a table is closed, we need to delete all the relationships based on
     // it
@@ -51,6 +63,7 @@ $(document).ready(function(){
         for(var i = 0; i < this.column_views.length; i++){
             relationship_view.removeRelationshipsRelatedToColumnView(this.column_views[i]);
         }
+        if(!this.moved) stack_height--;
     });
     // when a relationship is dblclicked we want to display a modal options dialog window
     EventRegistry.listenFor("dblclick", function(event){
