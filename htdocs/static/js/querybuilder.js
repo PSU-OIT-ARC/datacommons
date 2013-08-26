@@ -284,44 +284,6 @@ QueryColumnsView.prototype.appendColumn = function(column_view){
     this.renderTotals();
 }
 
-/* The following is used to perform topological sort */
-function Node(payload){
-    this.edges = []
-    this.payload = payload;
-}
-
-function topologicalSort(nodes){
-    var WHITE = 0
-    var GRAY = 1
-    var BLACK = 2
-
-    var visit = function(node, linked){
-        node.color = GRAY
-        for(var i = 0; i < node.edges.length; i++){
-            if(node.edges[i].color == WHITE){
-                visit(node.edges[i], linked)
-            }
-        }
-        node.color = BLACK;
-        linked.push(node)
-    }
-
-    var linked = []
-    for(var i = 0; i < nodes.length; i++){
-        nodes[i].color = WHITE;
-    }
-
-    for(var i = 0; i < nodes.length; i++){
-        var node = nodes[i];
-        if(node.color == WHITE){
-            visit(node, linked);
-        }
-    }
-
-    linked.reverse();
-    return linked;
-}
-
 /*
  * Adds, removes and draws the relationships between ColumnViews. 
  * Public methods:
@@ -354,30 +316,10 @@ RelationshipView.prototype.toSQL = function(sql){
         }
     }
 
-    // build a list of nodes, where each table is a node, and a relationship is an edge
-    var nodes = {}
-    for(var i = 0; i < tables.length; i++){
-        var node = new Node(tables[i]);
-        nodes[node.payload.key] = node;
-    }
-    // build a list of edges based on all the relationships
-    for(var i = 0; i < this.relationships.length; i++){
-        var rel = this.relationships[i];
-        var a_node = nodes[rel.a.table_view.key];
-        var b_node = nodes[rel.b.table_view.key];
-        if(a_node.edges.indexOf(b_node) == -1){
-            a_node.edges.push(b_node)
-        }
-    }
-    var node_list = [];
-    for(var i = 0; i < tables.length; i++){
-        node_list.push(nodes[tables[i].key]);
-    }
-    node_list = topologicalSort(node_list); 
-    tables = []
-    for(var i = 0; i < node_list.length; i++){
-        tables.push(node_list[i].payload);
-    }
+    tables.sort(function(a, b){
+        return a.element.offset().left - b.element.offset().left;
+
+    });
 
     var included_tables = {}
     included_tables[tables[0].key] = true;
@@ -392,17 +334,11 @@ RelationshipView.prototype.toSQL = function(sql){
     for(var i = 0; i < tables.length; i++){
         table_order[tables[i].key] = i;
     }
-    relationships.sort(function(rel_a, rel_b){
-        var a_index = Math.max(table_order[rel_a.a.table_view.key], table_order[rel_a.b.table_view.key]);
-        var b_index = Math.max(table_order[rel_b.a.table_view.key], table_order[rel_b.b.table_view.key]);
-        console.log(a_index, b_index);
-        return a_index - b_index;
-    });
 
     for(var i = 1; i < tables.length; i++){
         // add this table to our list of included tables
         var table = tables[i];
-        included_tables[tables[i].key] = true;
+        included_tables[table.key] = true;
         var is_first_join = true;
         var join_conditions = []
         // find all the relationships that can be added with these tables. Loop
@@ -426,7 +362,13 @@ RelationshipView.prototype.toSQL = function(sql){
         }
 
         // form the on clause
-        sql.from += join_conditions.join(" AND ") + " ";
+        if(join_conditions.length == 0){
+            tables.push(table);
+            delete included_tables[table.key];
+            console.log("here");
+        } else {
+            sql.from += join_conditions.join(" AND ") + " ";
+        }
     }
     return sql;
 }
@@ -436,11 +378,6 @@ RelationshipView.prototype.render = function(){
 }
 
 RelationshipView.prototype.addRelationship = function(a, b, type){
-    if(a.table_view.key > b.table_view.key){
-        var tmp = a;
-        a = b;
-        b = tmp;
-    }
     var relationship = {
         a: a,
         b: b,
