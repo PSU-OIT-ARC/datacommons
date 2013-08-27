@@ -1,19 +1,35 @@
 {% extends "main.html" %}
 {% block content %}
+<div id="query-builder">
+    <div id="tables" class="table-view-container"></div>
 
-<div id="tables" class="table-view-container"></div>
+    <div id="schemata" class="schemata-view">
+        <div class="schemata-list">
+        </div>
+    </div>
 
-<div id="schemata" class="schemata-view">
-    <div class="schemata-list">
+    <div id="query-columns-container">
+    <div>
+        <a href="#" class="btn btn-small" id="toggle-totals">Totals</a>
+        <a href="#" class="btn btn-small" id="view-sql">View SQL</a>
+        <a href="#" class="btn btn-small" id="run-sql">Run</a>
+    </div>
     </div>
 </div>
 
-<div id="query-columns-container">
-<div>
-    <a href="#" class="btn btn-small" id="toggle-totals">Totals</a>
-    <a href="#" class="btn btn-small" id="view-sql">View SQL</a>
-    <a href="#" class="btn btn-small">Run</a>
+<div id="error">
+    <a href="#" class="btn btn-small view-query-builder">Back to Builder</a>
+    <div class="alert alert-error"></div>
 </div>
+
+<div id="output">
+    <div>
+        <a href="#" class="btn btn-small view-query-builder">Back to Builder</a>
+        <a href="#" class="btn btn-small" id="save-as-view">Save as View</a>
+    </div>
+    <div id="output-output">
+
+    </div>
 </div>
 
 <script type="text/javascript" src="{{ STATIC_URL }}js/querybuilder.js"></script>
@@ -25,7 +41,7 @@ $(document).ready(function(){
     schemata_view.render();
     
     var stack_height = 0;
-
+    var relationship_view = new RelationshipView($('#tables'));
     // when a table name is clicked in the SchemataView, add it to the page
     EventRegistry.listenFor("click", function(event){
         if(!(this instanceof SchemataView)) return;
@@ -39,9 +55,10 @@ $(document).ready(function(){
         })
         tv.moved = false;
         stack_height++;
+
+        relationship_view.addTableView(tv);
     });
 
-    var relationship_view = new RelationshipView($('#tables'));
     relationship_view.render();
     // when a relationship is formed, add it to the view
     EventRegistry.listenFor("relationship_formed", function(event){
@@ -63,6 +80,7 @@ $(document).ready(function(){
         for(var i = 0; i < this.column_views.length; i++){
             relationship_view.removeRelationshipsRelatedToColumnView(this.column_views[i]);
         }
+        relationship_view.removeTableView(this);
         if(!this.moved) stack_height--;
     });
     // when a relationship is dblclicked we want to display a modal options dialog window
@@ -83,25 +101,54 @@ $(document).ready(function(){
         query_columns_view.toggleTotals();
         $(this).toggleClass("active");
     });
+
     $('#view-sql').click(function(e){
         e.preventDefault();
-        var sql = {}
-        sql = query_columns_view.toSQL(sql);
-        sql = relationship_view.toSQL(sql);
-        var sql_string = "SELECT " + sql.select.join(", ");
-        sql_string += " FROM " + sql.from
-        if(sql.where.length){
-            sql_string += " WHERE " + sql.where.join(" AND ");
-        }
-        if(sql.group_by.length){
-            sql_string += " GROUP BY " + sql.group_by.join(", ");
-        }
-        if(sql.order_by.length){
-            sql_string += " ORDER BY " + sql.order_by.join(", ");
-        }
+        var sql_string = toSQL(query_columns_view, relationship_view);
         console.log(sql_string);
     });
+
+    $('#run-sql').click(function(e){
+        e.preventDefault();
+        var sql_string = toSQL(query_columns_view, relationship_view);
+        $.getJSON('{% url 'api-query' %}', {sql: sql_string}, function(response){
+            $('#query-builder, #error, #output').hide();
+            if(response.success == false){
+                $('#error .alert').html(response.error);
+                $('#error').show();
+            } else {
+                var tb = new TableBuilder(response.cols, response.rows, response.limit, response.offset);
+                tb.render($('#output-output'));
+                $('#output').show();
+            }
+        });
+    });
+
+    $('.view-query-builder').click(function(e){
+        e.preventDefault();
+        $('#error, #output').hide();
+        $('#query-builder').show();
+    });
 });
+
+function toSQL(query_columns_view, relationship_view){
+    var sql = {}
+    sql = query_columns_view.toSQL(sql);
+    sql = relationship_view.toSQL(sql);
+    var sql_string = "SELECT " + sql.select.join(", ");
+    sql_string += " FROM " + sql.from
+    if(sql.where.length){
+        sql_string += " WHERE " + sql.where.join(" AND ");
+    }
+    if(sql.group_by.length){
+        sql_string += " GROUP BY " + sql.group_by.join(", ");
+    }
+    if(sql.order_by.length){
+        sql_string += " ORDER BY " + sql.order_by.join(", ");
+    }
+
+    return sql_string;
+}
 
 </script>
 

@@ -296,11 +296,20 @@ QueryColumnsView.prototype.appendColumn = function(column_view){
 function RelationshipView(container){
     this.relationships = [];
     this.container = container;
+    this.table_views = [];
+}
+
+RelationshipView.prototype.addTableView = function(tv){
+    this.table_views.push(tv);
+}
+
+RelationshipView.prototype.removeTableView = function(tv){
+    this.table_views.splice(this.table_views.indexOf(tv));
 }
 
 RelationshipView.prototype.toSQL = function(sql){
     sql = sql || {}
-    if(this.relationships.length == 0) return sql;
+    sql.from = ""
     // get a list of tables to be joined together
     var tables = [];
     // don't be hating on on O(n*m) algorithm
@@ -322,11 +331,12 @@ RelationshipView.prototype.toSQL = function(sql){
     });
 
     var included_tables = {}
-    included_tables[tables[0].key] = true;
-
-    // add the first table to the list of included tables, clone the list of
-    // relationships (so we can modify the list)
-    sql.from = tables[0].table.fullName() + " AS " + tables[0].name + " ";
+    if(tables.length >= 1){ 
+        included_tables[tables[0].key] = true;
+        // add the first table to the list of included tables, clone the list of
+        // relationships (so we can modify the list)
+        sql.from = tables[0].table.fullName() + " AS " + tables[0].name + " ";
+    }
 
     var relationships = this.relationships.slice(0); 
     // order the relationships by the position of the table in the list
@@ -339,7 +349,6 @@ RelationshipView.prototype.toSQL = function(sql){
         // add this table to our list of included tables
         var table = tables[i];
         included_tables[table.key] = true;
-        var is_first_join = true;
         var join_conditions = []
         // find all the relationships that can be added with these tables. Loop
         // in reverse, since we delete elements from the list
@@ -350,8 +359,7 @@ RelationshipView.prototype.toSQL = function(sql){
                 continue
 
             // add in the join (making sure we only do this once)
-            if(is_first_join){
-                is_first_join = false;
+            if(join_conditions.length == 0){
                 sql.from += rel.type + " JOIN " + table.table.fullName() + " AS " + table.name + " ON ";
             }
             
@@ -361,15 +369,27 @@ RelationshipView.prototype.toSQL = function(sql){
             relationships.splice(j, 1);
         }
 
-        // form the on clause
         if(join_conditions.length == 0){
+            // this table couldn't be added yet, so we'll try again on a later iteration
             tables.push(table);
             delete included_tables[table.key];
-            console.log("here");
         } else {
+            // form the on clause
             sql.from += join_conditions.join(" AND ") + " ";
         }
     }
+
+    // now cross join with all the table_views that aren't in a relationship
+    for(var i = 0; i < this.table_views.length; i++){
+        var tv = this.table_views[i];
+        if(tables.indexOf(tv) != -1) continue;
+        if(sql.from == ""){
+            sql.from += tv.table.fullName() + " AS " + tv.name + " "
+        } else {
+            sql.from += " CROSS JOIN " + tv.table.fullName() + " AS " + tv.name + " "
+        }
+    }
+
     return sql;
 }
 
@@ -673,7 +693,7 @@ ColumnView.prototype.render = function(){
     var cls = ""
     if(this.column.is_pk) cls = 'primary-key';
     this.element = $(
-        '<tr class="column-view">'
+        '<tr class="column-view ' + cls + '">'
             + '<td>'
                 + '<i class="icon-resize-horizontal column-dragger table-view-' + this.table_view.key + '" data-key="' + this.key + '"></i>'
             + '</td>'
@@ -868,4 +888,31 @@ SchemataView.prototype.bindEvents = function(){
         }
         EventRegistry.broadcast(that, "click", event);
     });
+}
+
+TableBuilder = function(cols, rows, limit, offset){
+    this.rows = rows;
+    this.cols = cols;
+    this.limit = limit;
+    this.offset = offset;
+}
+
+TableBuilder.prototype.render = function(container){
+    var html = [];
+    html.push("<thead><tr>");
+    for(var c = 0; c < this.cols.length; c++){
+        html.push("<th>" + this.cols[c].name + "</th>");
+    }
+    html.push("</tr></thead>");
+
+    for(var r = 0; r < this.rows.length; r++){
+        var row = this.rows[r];
+        html.push("<tr>");
+        for(var c = 0; c < row.length; c++){
+            html.push("<td>" + row[c] + "</td>");
+        }
+        html.push("</tr>");
+    }
+
+    container.html("<table>" + html.join("") + "</table>");
 }

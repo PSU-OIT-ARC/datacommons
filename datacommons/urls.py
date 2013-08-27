@@ -37,6 +37,7 @@ urlpatterns = patterns('',
 
     # api
     url(r'^api/schemas/(.*)/tables/(.*)\.(.*)$', api.view, name="api-schemas-tables"),
+    url(r'^api/query/?$', api.query, name="api-query"),
 
 
     # Uncomment the admin/doc line below to enable admin documentation:

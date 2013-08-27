@@ -4,7 +4,7 @@ import re
 from collections import defaultdict
 from django.conf import settings as SETTINGS
 from django.contrib.gis.geos import GEOSGeometry
-from django.db import connection, transaction, DatabaseError
+from django.db import connection, transaction, DatabaseError, connections
 
 def isSaneName(value):
     """Return true if value is a valid identifier"""
@@ -236,11 +236,23 @@ def fetchRowsFor(schema, table, columns=None):
     cursor.execute('''SELECT %s FROM "%s"."%s" ORDER BY %s''' % (column_str, schema, table, pk_string))
     return coerceRowsAndParseColumns(cursor.fetchall(), cursor.description)
 
+def fetchRowsForQuery(sql, limit, offset):
+    # get the total number of rows
+    cursor = connections['readonly'].cursor()
+    cursor.execute(sql)
+    length = cursor.rowcount
+
+    sql += " LIMIT %s OFFSET %s"
+    cursor.execute(sql, (limit, offset))
+
+    return coerceRowsAndParseColumns(cursor.fetchall(), cursor.description), length
+
 def coerceRowsAndParseColumns(rows, desc):
     cols = [
     {
         "name": t.name, 
-        "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code))
+        "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code)),
+        "type": ColumnTypes.fromPGCursorTypeCode(t.type_code)
     } for t in desc]
     has_geom = any(ColumnTypes.fromPGCursorTypeCode(t.type_code) == ColumnTypes.GEOMETRY for t in desc)
 
@@ -249,7 +261,10 @@ def coerceRowsAndParseColumns(rows, desc):
 
     better_rows = []
     for row in rows:
-        better_rows.append(row[:-1] + (GEOSGeometry(row[-1]),))
+        better_row = []
+        for val, col in zip(row, cols):
+            better_row.append(val if col['type'] != ColumnTypes.GEOMETRY else GEOSGeometry(val))
+        better_rows.append(better_row)
 
     return better_rows, cols
 
