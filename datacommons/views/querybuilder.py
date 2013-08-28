@@ -13,7 +13,7 @@ from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseMeta,
     getColumnsForTable,
-    SQLInfo
+    SQLHandle
 )
 from ..models import ColumnTypes, Table, TablePermission, Version
 from ..forms.querybuilder import CreateViewForm
@@ -35,7 +35,7 @@ def build(request):
     })
 
 def preview(request, sql):
-    q = SQLInfo(sql)
+    q = SQLHandle(sql)
     paginator = Paginator(q, 100)
     error = None
     rows = None

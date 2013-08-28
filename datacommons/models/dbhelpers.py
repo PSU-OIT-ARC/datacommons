@@ -239,12 +239,11 @@ def fetchRowsFor(schema, table, columns=None):
     else:
         sql = '''SELECT %s FROM "%s"."%s" ''' % (column_str, schema, table)
 
-    return SQLInfo(sql)
+    return SQLHandle(sql)
 
 def createView(schema_name, view_name, sql, commit=False):
     # this will raise a database Error is there is a problem with the SQL (hopefully)
-    s = SQLInfo(sql)
-    s.count()
+    SQLHandle(sql).count()
     cursor = connection.cursor()
     cursor.execute("SELECT dc_create_view(%s, %s, %s)", (schema_name, view_name, sql))
     if commit:
@@ -310,29 +309,38 @@ def _isValidValueAsPGType(value, type):
     return True
 
 
-class SQLInfo(object):
+class SQLHandle(object):
+    """This class wraps up a SQL statement with its parameters and allows it to
+    be paginated over efficently, and iterated over"""
     def __init__(self, sql, params=()):
-        self.sql = sql
-        self.params = params
+        self._sql = sql
+        self._params = params
         self._count = None
         self._cursor = None
         self._cols = None
 
     def count(self):
+        """Returns a count of the number of rows returned by the SQL. This method helps make this class Django Paginator compatible""" 
         if self._count == None:
             # construct some SQL that will efficently return the number of rows
             # returned by the SQL 
             cursor = connections['readonly'].cursor()
-            count_sql = "SELECT COUNT(*) FROM (" + self.sql + ") AS f"
-            cursor.execute(count_sql, self.params)
+            count_sql = "SELECT COUNT(*) FROM (" + self._sql + ") AS f"
+            cursor.execute(count_sql, self._params)
             self._count = cursor.fetchall()[0][0]
         return self._count
 
     @property
     def cols(self):
+        """Returns the the column info related to the SQL as a list of dicts
+        with keys for the column name, type_label and type."""
+        # we need to fetch the col info based on the SQL, since it hasn't been generated yet
         if self._cols == None:
+            # we haven't executed a query yet, so do that to get the cursor.description
             if self._cursor == None:
                 self._fetchRowsForQuery()
+
+            # build up the col info list
             self._cols = [
             {
                 "name": t.name, 
@@ -343,38 +351,57 @@ class SQLInfo(object):
         return self._cols
 
     def __iter__(self):
+        """Iterate over all the rows returned by the query"""
+        # if the cursor has already been set (like in the `self.cols` method)
+        # use that, otherwise execute the query
         cursor = self._cursor or self._fetchRowsForQuery()
-        if not self.has_geom:
+
+        has_geom = any(c['type'] == ColumnTypes.GEOMETRY for c in self.cols)
+
+        # if there is no geometry column, all the type casting is taken care of
+        # automagically by python
+        if not has_geom:
             for row in cursor:
                 yield row
         else:
+            # we need to cast the geometry columns in the row to a Geometry type
             for row in cursor:
                 yield self._castRow(row)
 
     def __getitem__(self, key):
+        """Fetch part of the results of the query using slice notation for the
+        offset and limit. Hopefully the query contains a well crafted order by
+        clause, otherwise the results may not be as expected. This method helps
+        make the class Django Paginator compatible"""
         if isinstance(key, slice):
             self._fetchRowsForQuery(offset=key.start, limit=(key.stop-key.start))
-            if not self.has_geom:
-                return self._cursor.fetchall()
-            else:
-                return [self._castRow(row) for row in self._cursor.fetchall()]
+            # convert the iterator to a list since len() needs to be defined
+            return list(self)
+        else:
+            raise NotImplementedError("This class only supports __getitem__ via slicing")
 
     def _castRow(self, row):
+        """Convert a row of data to the appropriate types"""
         better_row = []
         for val, col in zip(row, self.cols):
-            better_row.append(val if col['type'] != ColumnTypes.GEOMETRY else GEOSGeometry(val))
+            # convert Geom types to GEOSGeometry
+            if col['type'] == ColumnTypes.GEOMETRY:
+                val = GEOSGeometry(val)
+            better_row.append(val)
         return better_row
 
     def _fetchRowsForQuery(self, limit=None, offset=None):
-        # we want to execute this query with the readonly DB user
+        """Actually execute the query defined by `self._sql` with the optional
+        limit and offset"""
+        # we want to execute this query with the readonly DB user to prevent
+        # the most harmful SQL injection
         self._cursor = connections['readonly'].cursor()
-        sql = self.sql
+        sql = self._sql
         if not (limit == offset == None):
+            # tack on the offset and limit
             sql += " LIMIT %s OFFSET %s"
-            self._cursor.execute(sql, self.params + (limit, offset))
+            self._cursor.execute(sql, self._params + (limit, offset))
         else:
-            self._cursor.execute(sql, self.params)
-
-        self.has_geom = any(ColumnTypes.fromPGCursorTypeCode(t.type_code) == ColumnTypes.GEOMETRY for t in self._cursor.description)
+            self._cursor.execute(sql, self._params)
 
 from .models import ColumnTypes

@@ -9,11 +9,12 @@ from .utils import BetterModelForm, BetterForm
 from django.conf import settings as SETTINGS
 from django.contrib.auth.forms import PasswordChangeForm
 from datacommons.models import User, Table
-from ..models.dbhelpers import getDatabaseMeta, isSaneName, createView
+from ..models.dbhelpers import getDatabaseMeta, isSaneName, createView, SQLHandle
 
 class CreateViewForm(BetterForm):
     view_name = forms.CharField()
     sql = forms.CharField()
+
     def __init__(self, *args, **kwargs):
         super(CreateViewForm, self).__init__(*args, **kwargs)
         options = Table.objects.groupedBySchema()
@@ -32,7 +33,7 @@ class CreateViewForm(BetterForm):
     def clean_sql(self):
         sql = self.cleaned_data['sql']
         try:
-            SQLInfo(sql).count()
+            SQLHandle(sql).count()
         except DatabaseError as e:
             raise forms.ValidationError(str(e))
         return sql
