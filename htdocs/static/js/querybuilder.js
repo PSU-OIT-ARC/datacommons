@@ -218,17 +218,19 @@ QueryColumnsView.prototype.render = function(){
                 + '<div class="qc-row">'
                     + '<div class="qc-col">'
                         + '<label class="handle">&nbsp;</label>'
-                        + '<label>Field:</label>'
-                        + '<label class="totals">Total:</label>'
-                        + '<label>Sort:</label>'
-                        + '<label>Show:</label>'
-                        + '<label>Criteria:</label>'
-                        + '<label>Or:</label>'
-                        + '<label>&nbsp;</label>'
-                        + '<label>&nbsp;</label>' 
-                        + '<label>&nbsp;</label>' 
-                        + '<label>&nbsp;</label>'
-                        + '<label>&nbsp;</label>'
+                        + '<div class="qc-col-inner">'
+                            + '<label>Field:</label>'
+                            + '<label class="totals">Total:</label>'
+                            + '<label>Sort:</label>'
+                            + '<label>Show:</label>'
+                            + '<label>Criteria:</label>'
+                            + '<label>Or:</label>'
+                            + '<label>&nbsp;</label>'
+                            + '<label>&nbsp;</label>' 
+                            + '<label>&nbsp;</label>' 
+                            + '<label>&nbsp;</label>'
+                            + '<label>&nbsp;</label>'
+                        + '</div>'
                     + '</div>'
                 + '</div>'
             + '</div>'
@@ -296,20 +298,9 @@ QueryColumnsView.prototype.appendColumn = function(column_view){
 function RelationshipView(container){
     this.relationships = [];
     this.container = container;
-    this.table_views = [];
 }
 
-RelationshipView.prototype.addTableView = function(tv){
-    this.table_views.push(tv);
-}
-
-RelationshipView.prototype.removeTableView = function(tv){
-    this.table_views.splice(this.table_views.indexOf(tv));
-}
-
-RelationshipView.prototype.toSQL = function(sql){
-    sql = sql || {}
-    sql.from = ""
+RelationshipView.prototype.allTables = function(){
     // get a list of tables to be joined together
     var tables = [];
     // don't be hating on on O(n*m) algorithm
@@ -327,8 +318,15 @@ RelationshipView.prototype.toSQL = function(sql){
 
     tables.sort(function(a, b){
         return a.element.offset().left - b.element.offset().left;
-
     });
+
+    return tables
+}
+
+RelationshipView.prototype.toSQL = function(sql){
+    sql = sql || {}
+    sql.from = ""
+    tables = this.allTables();
 
     var included_tables = {}
     if(tables.length >= 1){ 
@@ -376,17 +374,6 @@ RelationshipView.prototype.toSQL = function(sql){
         } else {
             // form the on clause
             sql.from += join_conditions.join(" AND ") + " ";
-        }
-    }
-
-    // now cross join with all the table_views that aren't in a relationship
-    for(var i = 0; i < this.table_views.length; i++){
-        var tv = this.table_views[i];
-        if(tables.indexOf(tv) != -1) continue;
-        if(sql.from == ""){
-            sql.from += tv.table.fullName() + " AS " + tv.name + " "
-        } else {
-            sql.from += " CROSS JOIN " + tv.table.fullName() + " AS " + tv.name + " "
         }
     }
 
@@ -701,7 +688,9 @@ ColumnView.prototype.render = function(){
         + '</tr>');
     this.container.append(this.element);
     this.bindEvents(); 
+}
 
+ColumnView.prototype.initDraggingAndDropping = function(){
     // reset the draggable and droppable behaviors
     try {
         $('.column-dragger').draggable("destroy");
@@ -768,7 +757,7 @@ TableView.prototype.render = function(){
             + '<div class="header">'
                 + '<span class="remove"><i class="icon-remove"></i></span> ' + this.table.fullName() 
             + '</div>'
-            + '<input type="text" name="table-name" value="' + this.name + '" />'
+            + '<div class="table-name">' + this.name + "</div>"
             + '<table class="columns"><tbody></tbody></table>'
         + '</div>'];
     this.element = $(html.join(""));
@@ -780,6 +769,10 @@ TableView.prototype.render = function(){
         var cv = new ColumnView(this.table.columns[i], column_div, this)
         cv.render();
         this.column_views.push(cv);
+
+        if(i == this.table.columns.length - 1){
+            cv.initDraggingAndDropping();
+        }
     }
 
     var that = this;
@@ -890,29 +883,77 @@ SchemataView.prototype.bindEvents = function(){
     });
 }
 
-TableBuilder = function(cols, rows, limit, offset){
-    this.rows = rows;
-    this.cols = cols;
-    this.limit = limit;
-    this.offset = offset;
+function QueryState(query_columns_view, relationship_view){
+    this.query_columns_view = query_columns_view
+    this.relationship_view = relationship_view
+    this.table_views = []
 }
 
-TableBuilder.prototype.render = function(container){
-    var html = [];
-    html.push("<thead><tr>");
-    for(var c = 0; c < this.cols.length; c++){
-        html.push("<th>" + this.cols[c].name + "</th>");
-    }
-    html.push("</tr></thead>");
+QueryState.prototype.addTableView = function(table_view){
+    this.table_views.push(table_view);
+}
 
-    for(var r = 0; r < this.rows.length; r++){
-        var row = this.rows[r];
-        html.push("<tr>");
-        for(var c = 0; c < row.length; c++){
-            html.push("<td>" + row[c] + "</td>");
-        }
-        html.push("</tr>");
+QueryState.prototype.removeTableView = function(table_view){
+    var index = this.table_views.indexOf(table_view)
+    if(index == -1){
+        throw "TableView not found"
     }
 
-    container.html("<table>" + html.join("") + "</table>");
+    // remove all relationships based on columns in this tableview
+    for(var i = 0; i < table_view.column_views.length; i++){
+        this.relationship_view.removeRelationshipsRelatedToColumnView(table_view.column_views[i]);
+    }
+
+    // remove all the query columns associated with the tableview
+
+    this.table_views.splice(index, 1)
+}
+
+QueryState.prototype.toSQL = function(){
+    if(this.table_views.length == 0){
+        throw "New tables selected!";
+    }
+
+    var sql = {}
+    sql = this.query_columns_view.toSQL(sql);
+    sql = this.relationship_view.toSQL(sql);
+
+    var sql_string = "SELECT " + sql.select.join(", ");
+
+    if(sql.from){
+        sql_string += " FROM " + sql.from
+    }
+
+    // remove all the tables that formed relationships
+    var tables = this.table_views.slice(0);
+    var rel_tables = this.relationship_view.allTables();
+    for(var i = 0; i < rel_tables.length; i++){
+        var tv = rel_tables[i];
+        tables.splice(tables.indexOf(tv), 1);
+    }
+
+    var names = []
+    for(var i = 0; i < tables.length; i++){
+        var tv = tables[i];
+        names.push(tv.table.fullName() + " AS " + tv.name)
+    }
+
+    var cross = names.join(" CROSS JOIN "); 
+    if(!sql.from){
+        sql_string += " FROM " + cross
+    } else if(cross) {
+        sql_string += " CROSS JOIN " + cross
+    }
+
+    if(sql.where.length){
+        sql_string += " WHERE " + sql.where.join(" AND ");
+    }
+    if(sql.group_by.length){
+        sql_string += " GROUP BY " + sql.group_by.join(", ");
+    }
+    if(sql.order_by.length){
+        sql_string += " ORDER BY " + sql.order_by.join(", ");
+    }
+
+    return sql_string;
 }

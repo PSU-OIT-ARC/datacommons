@@ -43,8 +43,8 @@
     </div>
 
     <div class="span4">
-        <h4>Versions</h4>
         {% if versions %}
+            <h4>Versions</h4>
             <ul>
                 {% for v in versions %}
                     <li><a {% if version.pk == v.pk %}style="font-weight:bold"{% endif %}href="?version_id={{ v.pk }}">{{ v.created_on|date:"M-d-Y P" }}</a></li>

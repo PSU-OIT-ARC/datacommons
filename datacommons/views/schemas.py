@@ -28,6 +28,7 @@ def all(request):
 def view(request, schema_name, table_name):
     """View the table in schema, including the column names and types"""
     # get all the data
+
     version_id = request.GET.get("version_id")
     version = None
     try:
@@ -37,13 +38,13 @@ def view(request, schema_name, table_name):
 
     if version_id:
         version = Version.objects.get(pk=version_id) 
-        rows, cols = version.fetchRows()
+        pageable = version.fetchRows()
     else:
-        rows, cols = fetchRowsFor(schema_name, table_name)
+        pageable = fetchRowsFor(schema_name, table_name)
 
     versions = list(Version.objects.filter(table=table))
 
-    paginator = Paginator(rows, 100)
+    paginator = Paginator(pageable, 100)
     page = request.GET.get("page")
     try:
         rows = paginator.page(page)
@@ -56,7 +57,7 @@ def view(request, schema_name, table_name):
 
     return render(request, "schemas/view.html", {
         "rows": rows,
-        "cols": cols,
+        "cols": pageable.cols,
         "schema": schema_name,
         "table": table_name,
         "versions": versions,

@@ -6,24 +6,27 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
-from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
+from django.db import DatabaseError
 from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseMeta,
     getColumnsForTable,
+    SQLInfo
 )
 from ..models import ColumnTypes, Table, TablePermission, Version
-from ..forms.querybuilder import ChooseTablesForm, JoinForm
+from ..forms.querybuilder import CreateViewForm
 
 def build(request):
     if request.POST:
-        form = ChooseTablesForm(request.POST)
+        form = CreateViewForm(request.POST)
         if form.is_valid():
-            request.session['tables_form'] = form.cleaned_data
-            return HttpResponseRedirect(reverse("querybuilder-join"))
+            form.save()
+            return HttpResponse(json.dumps({"success": True}))
+        return HttpResponse(json.dumps({"success": False, "errors": form.errors}))
     else:
-        form = ChooseTablesForm(initial=request.session.get("tables_form"))
+        form = CreateViewForm()
 
     meta = getDatabaseMeta()
     return render(request, "querybuilder/build.html", {
@@ -31,13 +34,28 @@ def build(request):
         "schemata": json.dumps(meta),
     })
 
-def join_(request):
-    if request.POST:
-        form = JoinForm(request.POST, tables=request.session['tables_form'])
-        if form.is_valid():
-            return HttpResponse("foo")
-    else:
-        form = JoinForm(tables_form=request.session['tables_form'])
-    return render(request, "querybuilder/join.html", {
-        "form": form,
+def preview(request, sql):
+    q = SQLInfo(sql)
+    paginator = Paginator(q, 100)
+    error = None
+    rows = None
+
+    page = request.GET.get("page")
+    try:
+        try:
+            rows = paginator.page(page)
+        except PageNotAnInteger:
+            rows = paginator.page(1)
+        except EmptyPage:
+            rows = paginator.page(paginator.num_pages)
+    except DatabaseError as e:
+        error = str(e)
+
+
+    return render(request, "querybuilder/preview.html", {
+        "rows": rows,
+        "cols": q.cols,
+        "error": error,
+        "sql": sql,
     })
+

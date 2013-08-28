@@ -23,7 +23,8 @@ urlpatterns = patterns('',
 
     # query builder
     url(r'^querybuilder/?$', querybuilder.build, name="querybuilder-build"),
-    url(r'^querybuilder/join/?$', querybuilder.join_, name="querybuilder-join"),
+    url(r'^querybuilder/preview/?$', querybuilder.preview, name="querybuilder-preview"),
+    url(r'^querybuilder/preview/(?P<sql>.*)/?$', querybuilder.preview, name="querybuilder-preview"),
 
     # schemas
     url(r'^schemas/?$', schemas.all, name="schemas-all"),
@@ -37,7 +38,6 @@ urlpatterns = patterns('',
 
     # api
     url(r'^api/schemas/(.*)/tables/(.*)\.(.*)$', api.view, name="api-schemas-tables"),
-    url(r'^api/query/?$', api.query, name="api-query"),
 
 
     # Uncomment the admin/doc line below to enable admin documentation:

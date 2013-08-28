@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block body %}
+
+{% if error %}
+    <div class="alert alert-error">
+        <h4>There was an error with the SQL:</h4>
+        <p>{{ error }}</p>
+        <p><strong>SQL was:</strong> {{ sql }}</p>
+    </div>
+{% else %}
+    {% include '_paginator.html' with paginator=rows %}
+    <h4>Preview</h4>
+    <p>Close this window/tab to return to the query builder</p>
+
+    <div class="overflowed">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                {% for col in cols %}
+                    <th>{{ col.name }}</th>
+                {% endfor %}
+                </tr>
+                <tr>
+                {% for col in cols %}
+                    <th class="field-type">{{ col.type_label }}</th>
+                {% endfor %}
+                </tr>
+            </thead>
+            {% for row in rows %}
+                <tr>
+                    {% for col in row %}
+                        <td>
+                            {% if col.geom_type %}
+                                {{ col|truncatewords:1 }}
+                            {% else %}
+                                {{ col }}
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    {% include '_paginator.html' with paginator=rows %}
+{% endif %}
+{% endblock %}

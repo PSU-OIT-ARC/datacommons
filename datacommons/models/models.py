@@ -415,10 +415,10 @@ class Version(models.Model):
                 if action in ['update', 'insert']:
                     tm.insertRow(restore_to)
 
-            rows, desc = version.fetchRows()
-            print "----"
-            for row in rows:
-                print row
+            #rows, desc = version.fetchRows()
+            #print "----"
+            #for row in rows:
+            #    print row
             #raise ValueError("foo")
 
     def fetchRows(self):
@@ -451,10 +451,9 @@ class Version(models.Model):
         WHERE _inserted_or_deleted = 1
         ORDER BY %(pks)s
         """ % safe_params
-        cursor = connection.cursor()
-        cursor.execute(sql, params)
-
-        return coerceRowsAndParseColumns(cursor.fetchall(), cursor.description)
+        #cursor = connection.cursor()
+        #cursor.execute(sql, params)
+        return PaginatorCompatibleSQL(sql, params)
 
 
 class TablePermission(models.Model):
@@ -472,4 +471,4 @@ class TablePermission(models.Model):
         db_table = 'tablepermission'
         unique_together = ("table", "user")
 
-from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable, coerceRowsAndParseColumns, sanitize, internalSanitize
+from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable, sanitize, internalSanitize

@@ -233,40 +233,24 @@ def fetchRowsFor(schema, table, columns=None):
         column_str = ",".join('"%s"' % sanitize(col) for col in columns)
     else:
         column_str = "*"
-    cursor.execute('''SELECT %s FROM "%s"."%s" ORDER BY %s''' % (column_str, schema, table, pk_string))
-    return coerceRowsAndParseColumns(cursor.fetchall(), cursor.description)
 
-def fetchRowsForQuery(sql, limit, offset):
-    # get the total number of rows
-    cursor = connections['readonly'].cursor()
-    cursor.execute(sql)
-    length = cursor.rowcount
+    if pk_string != "":
+        sql = '''SELECT %s FROM "%s"."%s" ORDER BY %s''' % (column_str, schema, table, pk_string)
+    else:
+        sql = '''SELECT %s FROM "%s"."%s" ''' % (column_str, schema, table)
 
-    sql += " LIMIT %s OFFSET %s"
-    cursor.execute(sql, (limit, offset))
+    return SQLInfo(sql)
 
-    return coerceRowsAndParseColumns(cursor.fetchall(), cursor.description), length
-
-def coerceRowsAndParseColumns(rows, desc):
-    cols = [
-    {
-        "name": t.name, 
-        "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code)),
-        "type": ColumnTypes.fromPGCursorTypeCode(t.type_code)
-    } for t in desc]
-    has_geom = any(ColumnTypes.fromPGCursorTypeCode(t.type_code) == ColumnTypes.GEOMETRY for t in desc)
-
-    if not has_geom:
-        return rows, cols
-
-    better_rows = []
-    for row in rows:
-        better_row = []
-        for val, col in zip(row, cols):
-            better_row.append(val if col['type'] != ColumnTypes.GEOMETRY else GEOSGeometry(val))
-        better_rows.append(better_row)
-
-    return better_rows, cols
+def createView(schema_name, view_name, sql, commit=False):
+    # this will raise a database Error is there is a problem with the SQL (hopefully)
+    s = SQLInfo(sql)
+    s.count()
+    cursor = connection.cursor()
+    cursor.execute("SELECT dc_create_view(%s, %s, %s)", (schema_name, view_name, sql))
+    if commit:
+        transaction.commit_unless_managed()
+    else:
+        connection._rollback()
 
 def inferColumnTypes(rows):
     """`rows` is a list of lists (i.e. a table). For each column in the table,
@@ -324,5 +308,73 @@ def _isValidValueAsPGType(value, type):
             return False
 
     return True
+
+
+class SQLInfo(object):
+    def __init__(self, sql, params=()):
+        self.sql = sql
+        self.params = params
+        self._count = None
+        self._cursor = None
+        self._cols = None
+
+    def count(self):
+        if self._count == None:
+            # construct some SQL that will efficently return the number of rows
+            # returned by the SQL 
+            cursor = connections['readonly'].cursor()
+            count_sql = "SELECT COUNT(*) FROM (" + self.sql + ") AS f"
+            cursor.execute(count_sql, self.params)
+            self._count = cursor.fetchall()[0][0]
+        return self._count
+
+    @property
+    def cols(self):
+        if self._cols == None:
+            if self._cursor == None:
+                self._fetchRowsForQuery()
+            self._cols = [
+            {
+                "name": t.name, 
+                "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code)),
+                "type": ColumnTypes.fromPGCursorTypeCode(t.type_code)
+            } for t in self._cursor.description]
+
+        return self._cols
+
+    def __iter__(self):
+        cursor = self._cursor or self._fetchRowsForQuery()
+        if not self.has_geom:
+            for row in cursor:
+                yield row
+        else:
+            for row in cursor:
+                yield self._castRow(row)
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            self._fetchRowsForQuery(offset=key.start, limit=(key.stop-key.start))
+            if not self.has_geom:
+                return self._cursor.fetchall()
+            else:
+                return [self._castRow(row) for row in self._cursor.fetchall()]
+
+    def _castRow(self, row):
+        better_row = []
+        for val, col in zip(row, self.cols):
+            better_row.append(val if col['type'] != ColumnTypes.GEOMETRY else GEOSGeometry(val))
+        return better_row
+
+    def _fetchRowsForQuery(self, limit=None, offset=None):
+        # we want to execute this query with the readonly DB user
+        self._cursor = connections['readonly'].cursor()
+        sql = self.sql
+        if not (limit == offset == None):
+            sql += " LIMIT %s OFFSET %s"
+            self._cursor.execute(sql, self.params + (limit, offset))
+        else:
+            self._cursor.execute(sql, self.params)
+
+        self.has_geom = any(ColumnTypes.fromPGCursorTypeCode(t.type_code) == ColumnTypes.GEOMETRY for t in self._cursor.description)
 
 from .models import ColumnTypes

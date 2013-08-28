@@ -179,13 +179,8 @@ ul.nested-checkbox {
     font-weight:bold;
 }
 
-.table-view input[type='text']{
+.table-view .table-name {
     margin-bottom:0;
-    width:100%;
-    box-sizing:border-box;
-    border-top:none;
-    border-left:none;
-    border-right:none;
     font-style:italic;
     padding:0px;
     padding-left:3px;
@@ -294,6 +289,10 @@ ul.nested-checkbox {
     overflow:auto;
     width:80%;
     height:500px;
+}
+
+#error, #output {
+    display:none;
 }
 
 /*
