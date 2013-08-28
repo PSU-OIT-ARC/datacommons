@@ -16,7 +16,7 @@
             <tbody>
                 {% for user, can_insert, can_update, can_delete in form.fieldIter %}
                     <tr>
-                        <td>{{ user.username }}</td>
+                        <td>{{ user.email }}</td>
                         <th>{{ can_insert }}</th>
                         <th>{{ can_update }}</th>
                         <th>{{ can_delete }}</th>

@@ -28,15 +28,17 @@ function Column(name, is_pk, table){
  */
 function parseSchemata(schemata){
     var schemas = [];
-    for(var schema_name in schemata){
-        var schema = new Schema(schema_name);
-        var tables = schemata[schema_name];
-        for(var table_name in tables){
-            var table = new Table(table_name, schema);
-            var cols = tables[table_name];
-            for(var i = 0; i < cols.length; i++){
-                var col = cols[i];
-                table.columns.push(new Column(col.name, col.pk, table));
+    for(var i = 0; i < schemata.length; i++){
+        var s = schemata[i];
+        var schema = new Schema(s.name);
+        var tables = s.tables;
+        for(var j = 0; j < tables.length; j++){
+            var t = tables[j];
+            var table = new Table(t.name, schema);
+            var cols = t.columns
+            for(var k = 0; k < cols.length; k++){
+                var col = cols[k];
+                table.columns.push(new Column(col.name, col.is_pk, table));
             }
             schema.tables.push(table);
         }

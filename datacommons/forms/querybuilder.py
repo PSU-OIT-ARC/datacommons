@@ -9,7 +9,7 @@ from .utils import BetterModelForm, BetterForm
 from django.conf import settings as SETTINGS
 from django.contrib.auth.forms import PasswordChangeForm
 from datacommons.models import User, Table
-from ..models.dbhelpers import getDatabaseMeta, isSaneName, createView, SQLHandle
+from ..models.dbhelpers import isSaneName, createView, SQLHandle
 
 class CreateViewForm(BetterForm):
     view_name = forms.CharField()

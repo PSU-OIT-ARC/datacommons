@@ -10,16 +10,17 @@ from django.db import DatabaseError
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from ..models.dbhelpers import (
-    getDatabaseMeta,
     getColumnsForTable,
+    getDatabaseTopology,
 )
 from ..models import ColumnTypes, ImportableUpload
 from ..forms.csvs import ImportableUploadForm, CSVPreviewForm
+from datacommons.jsonencoder import JSONEncoder
 
 @login_required
 def upload(request):
     """Display the CSV upload form"""
-    schemas = getDatabaseMeta()
+    schemas = getDatabaseTopology()
     errors = {}
     if request.POST:
         form = ImportableUploadForm(request.POST, request.FILES, user=request.user)
@@ -30,7 +31,7 @@ def upload(request):
     else:
         form = ImportableUploadForm(user=request.user)
 
-    schemas_json = json.dumps(schemas)
+    schemas_json = json.dumps(schemas, cls=JSONEncoder)
     return render(request, 'csv/upload.html', {
         "schemas": schemas,
         "schemas_json": schemas_json,
@@ -60,7 +61,7 @@ def preview(request):
                 error = str(e)
             else:
                 messages.success(request, "You successfully imported the CSV!")
-                return HttpResponseRedirect(reverse('schemas-view', args=(upload.table.schema, upload.table.name)))
+                return HttpResponseRedirect(reverse('schemas-show', args=(upload.table.schema, upload.table.name)))
     else:
         form = CSVPreviewForm(upload=upload)
 

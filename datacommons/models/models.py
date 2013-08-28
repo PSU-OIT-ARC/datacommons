@@ -260,11 +260,6 @@ class TableMutator(object):
         table = version.table
         self.column_info = getColumnsForTable(table.schema, table.name)
 
-        # add the pk flag to the column info
-        pks = getPrimaryKeysForTable(table.schema, table.name)
-        for col in self.column_info:
-            col['is_pk'] = col['name'] in pks
-
         # build SQL query strings for inserting data and deleting data from the
         # table itself, and the audit table
         
@@ -273,12 +268,12 @@ class TableMutator(object):
         # an srid dictionary key to the appropriate column.
         escape_string = []
         for col in self.column_info:
-            if col['type'] == ColumnTypes.GEOMETRY:
-                escape_string.append("ST_GeomFromText(%%s, %s)" % (col['srid']))
+            if col.type == ColumnTypes.GEOMETRY:
+                escape_string.append("ST_GeomFromText(%%s, %s)" % (col.srid))
             else:
                 escape_string.append("%s")
         escape_string = ",".join(escape_string)
-        safe_col_name_str = ",".join('"%s"' % sanitize(col['name']) for col in self.column_info)
+        safe_col_name_str = ",".join('"%s"' % sanitize(col.name) for col in self.column_info)
         self.insert_sql = """INSERT INTO "%s"."%s" (%s) VALUES(%s)""" % (
             sanitize(table.schema), 
             sanitize(table.name),
@@ -293,14 +288,14 @@ class TableMutator(object):
         )
 
         # now build the delete SQL strings
-        escape_string = " AND ".join(['"%s" = %%s' % sanitize(col['name']) for col in self.column_info if col['is_pk']])
+        escape_string = " AND ".join(['"%s" = %%s' % sanitize(col.name) for col in self.column_info if col.is_pk])
         self.delete_sql = 'DELETE FROM "%s"."%s" WHERE %s' % (
             sanitize(table.schema), 
             sanitize(table.name), 
             escape_string
         )
-        escape_string = ",".join(["%s" for _ in pks])
-        safe_pk_name_str = ",".join(['"%s"' % sanitize(col['name']) for col in self.column_info if col['is_pk']])
+        escape_string = ",".join(["%s" for col in self.column_info if col.is_pk])
+        safe_pk_name_str = ",".join(['"%s"' % sanitize(col.name) for col in self.column_info if col.is_pk])
         self.audit_delete_sql = """INSERT INTO public.%s (%s, _inserted_or_deleted, _version_id) VALUES(%s, -1, %s)""" % (
             internalSanitize(table.auditTableName()), 
             safe_pk_name_str,
@@ -320,10 +315,10 @@ class TableMutator(object):
         self._doSQL(self.audit_delete_sql, values)
 
     def pkNames(self):
-        return [col['name'] for col in self.column_info if col['is_pk']]
+        return [col.name for col in self.column_info if col.is_pk]
 
     def columnNames(self):
-        return [col['name'] for col in self.column_info]
+        return [col.name for col in self.column_info]
 
     def _doSQL(self, sql, params):
         cursor = self.cursor
@@ -352,10 +347,10 @@ class Version(models.Model):
 
         safe_params = {
             "table_name": table_name,
-            "pks": ",".join('"%s"' % sanitize(col['name']) for col in column_info if col['is_pk']), 
+            "pks": ",".join('"%s"' % sanitize(col.name) for col in column_info if col.is_pk), 
             "audit_table_name": audit_table_name,
-            "table_columns": ",".join('%s."%s"' % (table_name, sanitize(col['name'])) for col in column_info),
-            "audit_table_columns": ",".join('%s."%s"' % (audit_table_name, col['name']) for col in column_info),
+            "table_columns": ",".join('%s."%s"' % (table_name, sanitize(col.name)) for col in column_info),
+            "audit_table_columns": ",".join('%s."%s"' % (audit_table_name, col.name) for col in column_info),
         }
 
         sql = """

@@ -1,9 +1,8 @@
 from django.db import IntegrityError, transaction
 from django import forms
-from django.contrib.auth.models import User
 from django.utils.datastructures import SortedDict
-from ..models import TablePermission, Table
-from ..models.dbhelpers import getDatabaseMeta, isSaneName, createSchema
+from ..models import TablePermission, Table, User
+from ..models.dbhelpers import getDatabaseTopology, isSaneName, createSchema
 import widgets
 from .utils import BetterForm
 
@@ -47,7 +46,7 @@ class PermissionsForm(BetterForm):
     def clean_user(self):
         user = self.cleaned_data['user']
         try:
-            user = User.objects.get(username=user)
+            user = User.objects.get(email=user)
         except User.DoesNotExist:
             raise forms.ValidationError("That user does not exist")
         return user
@@ -125,9 +124,9 @@ class CreateSchemaForm(BetterForm):
     name = forms.CharField(max_length=255)
 
     def clean_name(self):
-        meta = getDatabaseMeta()
+        meta = getDatabaseTopology()
         name = self.cleaned_data['name']
-        if name in meta:
+        if name in [s.name for s in meta]:
             raise forms.ValidationError("That schema name already exists!")
 
         if not isSaneName(name):

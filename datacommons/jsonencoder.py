@@ -1,6 +1,7 @@
 import decimal
 import json
 from django.contrib.gis.geos import GEOSGeometry
+from models.dbhelpers import SchemataItem
 # since Python's default JSONEncoder doesn't handle decimal types, we have to
 # add support for that on our own. Same with date types
 class JSONEncoder(json.JSONEncoder):
@@ -11,4 +12,6 @@ class JSONEncoder(json.JSONEncoder):
             return o.isoformat()
         if isinstance(o, GEOSGeometry):
             return str(o)
+        if isinstance(o, SchemataItem): 
+            return o.__dict__
         return super(JSONEncoder, self).default(o)

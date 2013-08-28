@@ -66,9 +66,9 @@ class Importable(object):
 
             tm = TableMutator(version)
             # add the srid of the geometry column to the TableMutator's column_info
-            geom_column_name = [col['name'] for col in tm.column_info if col['type'] == ColumnTypes.GEOMETRY]
-            if geom_column_name:
-                tm.column_info[geom_column_name]['srid'] = self.srid()
+            for col in tm.column_info:
+                if col.type == ColumnTypes.GEOMETRY:
+                    col.srid = self.srid()
 
             do_insert = mode in [ImportableUpload.CREATE, ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]
             do_delete = mode in [ImportableUpload.UPSERT, ImportableUpload.DELETE]

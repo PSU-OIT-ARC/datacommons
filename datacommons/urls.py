@@ -27,8 +27,9 @@ urlpatterns = patterns('',
     url(r'^querybuilder/preview/(?P<sql>.*)/?$', querybuilder.preview, name="querybuilder-preview"),
 
     # schemas
-    url(r'^schemas/?$', schemas.all, name="schemas-all"),
-    url(r'^schemas/view/(.*)/(.*)/?$', schemas.view, name="schemas-view"),
+    url(r'^schemas/tables/?$', schemas.tables, name="schemas-tables"),
+    url(r'^schemas/views/?$', schemas.views, name="schemas-views"),
+    url(r'^schemas/show/(.*)/(.*)/?$', schemas.show, name="schemas-show"),
     url(r'^schema/permissions/?$', schemas.permissions, name="schemas-permissions"),
     url(r'^schema/users/?$', schemas.users, name="schemas-users"),
     url(r'^schema/grant/?$', schemas.grant, name="schemas-grant"),

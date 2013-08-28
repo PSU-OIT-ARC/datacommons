@@ -5,7 +5,7 @@ from django import forms
 from django.forms.widgets import RadioSelect
 from django.db import DatabaseError
 from ..models import ImportableUpload, ColumnTypes, Table
-from ..models.dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable, createTable, getDatabaseMeta
+from ..models.dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable, createTable, getDatabaseTopology
 from .utils import BetterForm
 
 class ImportableUploadForm(BetterForm):
@@ -31,13 +31,12 @@ class ImportableUploadForm(BetterForm):
         super(ImportableUploadForm, self).__init__(*args, **kwargs)
 
         # get all the schemas from the db, and set the choices for schemas and tables
-        self.db_meta = getDatabaseMeta()
-        self.fields['schema'].choices = [("", "")] + [(name, name) for name in self.db_meta]
+        self.db_topology = getDatabaseTopology()
+        self.fields['schema'].choices = [("", "")] + [(schema.name, schema.name) for schema in self.db_topology]
         tables = [("", "")]
-        for x, table in self.db_meta.items():
-            for name, x in table.items():
-                if name:
-                    tables.append((name, name))
+        for schema in self.db_topology:
+            for table in schema.tables:
+                tables.append((table.name, table.name))
         self.fields['table'].choices = tables
 
     def clean_file(self):
@@ -72,7 +71,13 @@ class ImportableUploadForm(BetterForm):
         if mode not in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
             return
 
-        if schema in self.db_meta and table not in self.db_meta[schema]:
+        db_schema = None
+        for s in self.db_topology:
+            if s.name == schema:
+                db_schema = s
+                break
+
+        if db_schema and not any(t for t in db_schema if t.name == table):
             self._errors.setdefault("table", self.error_class()).append('Choose a table!')
             # make sure the error message is displayed by removing it from
             # cleaned_data
@@ -225,7 +230,7 @@ class ImportablePreviewForm(BetterForm):
                 existing_column_names = getPrimaryKeysForTable(self.upload.table.schema, self.upload.table.name)
             else:
                 existing_columns = getColumnsForTable(self.upload.table.schema, self.upload.table.name)
-                existing_column_names = [c['name'] for c in existing_columns]
+                existing_column_names = [c.name for c in existing_columns]
 
             choices = [(c, c) for c in existing_column_names]
             # add the field that lets the user select a column
@@ -326,7 +331,7 @@ class ImportablePreviewForm(BetterForm):
         if self.upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]:
             # make sure the column names match the existing table
             existing_columns = getColumnsForTable(self.upload.table.schema, self.upload.table.name)
-            existing_column_names = [c['name'] for c in existing_columns]
+            existing_column_names = [c.name for c in existing_columns]
             if set(existing_column_names) != set(names):
                 raise forms.ValidationError("The columns must match the existing table")
 

@@ -22,66 +22,119 @@ def internalSanitize(value):
     value = value.lower().strip()
     return re.sub(r'[^a-z_0-9]', '', value)
 
-def getDatabaseMeta():
-    """Returns a dict with keys as the schema name, and values as a dict with
-    keys as table names, and values as a list of dicts with {type, type_label,
-    name}. Basically it returns the topology of the entire database"""
+def getViews():
     sql = """
-        SELECT 
-            nspname, 
-            tablename 
+        SELECT
+            n.nspname AS table_schema, 
+            c.relname AS table_name
         FROM 
-            pg_namespace
+            pg_catalog.pg_class c
         LEFT JOIN 
-            pg_tables 
-        ON pg_namespace.nspname = pg_tables.schemaname
+            pg_catalog.pg_namespace n ON (n.oid = c.relnamespace)
         WHERE 
-            pg_namespace.nspowner != 10 AND nspname != 'geometries'
+            c.relkind  = 'v' AND 
+            n.nspowner != 10"""
+
+    cursor = connection.cursor()
+    cursor.execute(sql)
+    schemas = {}
+    for schema, name in cursor.fetchall():
+        schemas.setdefault(schema, []).append(name)
+
+    return schemas
+
+class SchemataItem(object):
+    def __unicode__(self):
+        return self.name
+
+class Schema(SchemataItem):
+    def __init__(self, name):
+        self.tables = []
+        self.name = name
+
+    def __iter__(self):
+        return iter(self.tables)
+
+class Table(SchemataItem):
+    def __init__(self, name, is_view=False):
+        self.columns = []
+        self.name = name
+        self.is_view = is_view
+
+    def __iter__(self):
+        return iter(self.columns)
+
+class Column(SchemataItem):
+    def __init__(self, name, type, is_pk):
+        self.name = name
+        self.type = type
+        self.is_pk = is_pk
+
+        self.type_label = ColumnTypes.toString(self.type)
+
+def getDatabaseTopology():
+    sql = """
+        SET session authorization datacommons_rw;
+        SELECT
+            nspname,
+            t.table_name,
+            t.table_type,
+            c.column_name,
+            c.data_type,
+            pks.constraint_type
+        FROM
+            pg_namespace
+        LEFT JOIN
+            information_schema.tables t ON t.table_schema = nspname
+        LEFT JOIN 
+            information_schema.columns c on c.table_schema = nspname AND t.table_name = c.table_name
+        LEFT JOIN (
+            SELECT
+                tc.table_schema,
+                tc.table_name,
+                column_name,
+                tc.constraint_type
+            FROM
+                information_schema.table_constraints as tc
+            INNER JOIN
+                information_schema.key_column_usage as kcu
+            ON
+                tc.constraint_name = kcu.constraint_name
+                AND
+                tc.table_schema = kcu.table_schema
+                AND
+                tc.table_name = kcu.table_name
+            WHERE
+                tc.constraint_type = 'PRIMARY KEY'
+        ) pks ON pks.table_schema = nspname AND pks.table_name = t.table_name AND pks.column_name = c.column_name
+        WHERE 
+            pg_namespace.nspowner != 10 AND 
+            nspname != 'geometries'
+            ORDER BY nspname, table_name, c.ordinal_position
     """
     cursor = connection.cursor()
     cursor.execute(sql)
-    # meta is a dict, containing dicts, which hold lists, which hold dicts
-    meta = {}
-    for row in cursor.fetchall():
-        schema, table = row
-        if schema not in meta:
-            meta[schema] = {}
 
-        if table and table not in meta[schema]:
-            meta[schema][table] = []
+    topology = []
+    for schema_name, table_name, table_type, column_name, data_type, constraint_type in cursor.fetchall():
+        # add the schema object
+        if len(topology) == 0 or topology[-1].name != schema_name:
+            topology.append(Schema(schema_name))
+        schema = topology[-1]
 
-    # grab all the columns from every table with mharvey's stored proc
-    # have to run a query in a loop because of the way the proc works
-    for schema_name, tables in meta.items():
-        for table_name in tables:
-            cursor.execute("""
-                SELECT 
-                    column_name, 
-                    column_type 
-                FROM 
-                    dc_get_table_metadata(%s, %s)
-            """, (schema_name, table_name))
-            for row in cursor.fetchall():
-                column, data_type = row
-                try:
-                    type_id = ColumnTypes.fromPGTypeName(data_type)
-                except KeyError:
-                    #raise ValueError("Table '%s.%s' has a column of type '%s' which is not supported" % (schema_name, table_name, data_type))
-                    continue
-                meta[schema_name][table_name].append({
-                    "name": column, 
-                    "type": type_id,
-                    "type_label": ColumnTypes.toString(type_id),
-                })
+        # this schema has no tables, so move on
+        if not table_name: continue
 
-    # tack on the primary key info
-    pks = getPrimaryKeys()
-    for schema in pks:
-        for table in pks[schema]:
-            for col in meta.get(schema, {}).get(table, []):
-                col['pk'] = col['name'] in pks[schema][table]
+        if len(schema.tables) == 0 or schema.tables[-1].name != table_name:
+            schema.tables.append(Table(table_name, table_type == "VIEW"))
+        table = schema.tables[-1]
 
-    return meta
+        # this table has no columns, so move on
+        if not column_name: continue
+
+        table.columns.append(Column(column_name, ColumnTypes.fromPGTypeName(data_type), constraint_type is not None))
+
+    return topology
 
 def addGeometryColumn(schema_name, table_name, srid, type, commit=False):
     cursor = connection.cursor()
@@ -91,49 +144,23 @@ def addGeometryColumn(schema_name, table_name, srid, type, commit=False):
     if commit:
         transaction.commit_unless_managed()
 
-def getPrimaryKeys():
-    """
-    Return a dict of dicts of sets where the keys are the schema name, the
-    table name, and the value is a set of columns which are the primary key of
-    `schema.table`
-    """
-    cursor = connection.cursor()
-    cursor.execute("""
-        SELECT 
-            tc.table_schema, 
-            tc.table_name, 
-            tc.constraint_type, 
-            column_name 
-        FROM 
-            information_schema.table_constraints as tc
-        INNER JOIN 
-            information_schema.key_column_usage as kcu 
-        ON 
-            tc.constraint_name = kcu.constraint_name
-            AND
-            tc.table_schema = kcu.table_schema
-            AND
-            tc.table_name = kcu.table_name
-        WHERE 
-            tc.constraint_type = 'PRIMARY KEY'
-    """)
-    data = defaultdict(lambda: defaultdict(set))
-    for row in cursor.fetchall(): 
-        schema, table, constraint_type, column_name = row
-        data[schema][table].add(column_name)
-
-    return data
-
 def getPrimaryKeysForTable(schema, table):
     """
     Returns a set of the column names in `schema.table` that are primary keys
     """
-    return getPrimaryKeys()[schema][table]
+    cols = getColumnsForTable(schema, table)
+    return [col for col in cols if col.is_pk]
 
 def getColumnsForTable(schema, table):
     """Return a list of columns in schema.table"""
-    meta = getDatabaseMeta()
-    return meta[schema][table]
+    topology = getDatabaseTopology()
+    for s in topology:
+        if s.name == schema:
+            break
+
+    for t in s:
+        if t.name == table:
+            return t.columns
 
 def createSchema(name):
     name = sanitize(name)

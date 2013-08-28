@@ -46,6 +46,19 @@
 
 <script type="text/javascript">
 var SCHEMAS = {{ schemas_json|safe }};
+function getSchemaByName(name){
+    for(var i = 0; i < SCHEMAS.length; i++){
+        if(SCHEMAS[i].name == name) return SCHEMAS[i];
+    }
+    return null;
+}
+
+function getTableByName(schema, name){
+    for(var i = 0; i < schema.tables.length; i++){
+        if(schema.tables[i].name == name) return schema.tables[i];
+    }
+}
+
 $(document).ready(function(){
     // when the schema select box changes, we need to update all the tables in
     // the table select box
@@ -89,7 +102,7 @@ function populateTables(){
     // get the schema name
     var schema = $('#id_schema').val();
     // get all the tables out of the schema meta data
-    var tables = SCHEMAS[schema];
+    var tables = getSchemaByName(schema).tables;
     // get the currently selected table, so we can restore the selected value,
     // when the option list is regenerated
     var original_selection = $('#id_table').val();
@@ -106,8 +119,9 @@ function populateTables(){
     // add a blank option
     t.append("<option value=''></option>")
     // for each table, add an option in the drop down list for it
-    for(var k in tables){
-        var name = k;
+    for(var i = 0; i < tables.length; i++){
+        if(tables[i].is_view) continue;
+        var name = tables[i].name
         var el = t.append("<option value='" + name + "'>" + name + "</option>");
     }
 
@@ -129,7 +143,8 @@ function showColumns(schema, table){
     }
     // get the list of cols out of the schema meta data
     try {
-        var cols = SCHEMAS[schema][table];
+        var schema = getSchemaByName(schema)
+        var cols = getTableByName(schema, table).columns
     } catch(e){
         return;
     }
@@ -138,9 +153,9 @@ function showColumns(schema, table){
     for(var i = 0; i < cols.length; i++){
         col = cols[i];
         info.push("<li>") 
-        if(col.pk) info.push("<strong>")
+        if(col.is_pk) info.push("<strong>")
         info.push(col.name)
-        if(col.pk) info.push("</strong>")
+        if(col.is_pk) info.push("</strong>")
         
         info.push(" (<em>")
         info.push(col.type_label.toLowerCase())

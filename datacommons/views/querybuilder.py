@@ -11,12 +11,13 @@ from django.db.models import Q
 from django.db import DatabaseError
 from ..models.dbhelpers import (
     fetchRowsFor,
-    getDatabaseMeta,
+    getDatabaseTopology,
     getColumnsForTable,
     SQLHandle
 )
 from ..models import ColumnTypes, Table, TablePermission, Version
 from ..forms.querybuilder import CreateViewForm
+from datacommons.jsonencoder import JSONEncoder
 
 def build(request):
     if request.POST:
@@ -28,10 +29,10 @@ def build(request):
     else:
         form = CreateViewForm()
 
-    meta = getDatabaseMeta()
+    meta = getDatabaseTopology()
     return render(request, "querybuilder/build.html", {
         "form": form,
-        "schemata": json.dumps(meta),
+        "schemata": json.dumps(meta, cls=JSONEncoder),
     })
 
 def preview(request, sql):

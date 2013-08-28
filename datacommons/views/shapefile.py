@@ -10,16 +10,17 @@ from django.db import DatabaseError
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from ..models.dbhelpers import (
-    getDatabaseMeta,
+    getDatabaseTopology,
     getColumnsForTable,
 )
 from ..models import ColumnTypes, ImportableUpload
 from ..forms.shapefiles import ShapefileUploadForm, ShapefilePreviewForm
+from datacommons.jsonencoder import JSONEncoder
 
 @login_required
 def upload(request):
     """Display the shapefile upload form"""
-    schemas = getDatabaseMeta()
+    schemas = getDatabaseTopology()
     errors = {}
     if request.POST:
         form = ShapefileUploadForm(request.POST, request.FILES, user=request.user)
@@ -30,7 +31,7 @@ def upload(request):
     else:
         form = ShapefileUploadForm(user=request.user)
 
-    schemas_json = json.dumps(schemas)
+    schemas_json = json.dumps(schemas, cls=JSONEncoder)
     return render(request, 'shapefile/upload.html', {
         "schemas": schemas,
         "schemas_json": schemas_json,

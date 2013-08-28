@@ -3,29 +3,39 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
 from django.core.urlresolvers import reverse
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from django.db.models import Q
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from ..models.dbhelpers import (
     fetchRowsFor,
-    getDatabaseMeta,
+    getDatabaseTopology,
     getColumnsForTable,
+    getViews
 )
-from ..models import ColumnTypes, Table, TablePermission, Version
+from ..models import ColumnTypes, Table, TablePermission, Version, User
 from ..forms.schemas import PermissionsForm, TablePermissionsForm, CreateSchemaForm
 
 @login_required
-def all(request):
+def tables(request):
     """Display a nested list of all the schemas and tables in the database"""
-    schemas = getDatabaseMeta()
+    schemas = getDatabaseTopology()
     return render(request, "schemas/list.html", {
         "schemas": schemas,
+        "tables_only": True,
     })
 
 @login_required
-def view(request, schema_name, table_name):
+def views(request):
+    """Display a nested list of all the schemas and tables in the database"""
+    schemas = getDatabaseTopology()
+    return render(request, "schemas/list.html", {
+        "schemas": schemas,
+        "views_only": True,
+    })
+
+@login_required
+def show(request, schema_name, table_name):
     """View the table in schema, including the column names and types"""
     # get all the data
 
@@ -55,7 +65,7 @@ def view(request, schema_name, table_name):
 
     show_restore_link = version and version.pk != versions[-1].pk
 
-    return render(request, "schemas/view.html", {
+    return render(request, "schemas/show.html", {
         "rows": rows,
         "cols": pageable.cols,
         "schema": schema_name,
@@ -130,14 +140,14 @@ def permissionsDetail(request, table_id):
 
 @login_required
 def users(request):
-    username = request.GET.get("term", "")
+    term = request.GET.get("term", "")
     users = User.objects.filter(
-        Q(username__startswith=username) |
-        Q(first_name__startswith=username) |
-        Q(last_name__startswith=username)
+        Q(email__startswith=term) |
+        Q(first_name__startswith=term) |
+        Q(last_name__startswith=term)
     )[:10]
     return HttpResponse(json.dumps([{
-        "username": u.username,
+        "email": u.email,
         "first_name": u.first_name,
         "last_name": u.last_name,
     } for u in users]))

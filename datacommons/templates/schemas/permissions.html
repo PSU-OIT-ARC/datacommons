@@ -15,8 +15,8 @@ function bindAutoComplete(){
                 for(var i = 0; i < data.length; i++){
                     var user = data[i];
                     options.push({
-                        label: user.first_name + " " + user.last_name + " (" + user.username + ")",
-                        value: user.username,
+                        label: user.first_name + " " + user.last_name + " (" + user.email + ")",
+                        value: user.email,
                     });
                 }
                 response(options); 
