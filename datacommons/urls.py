@@ -28,7 +28,6 @@ urlpatterns = patterns('',
 
     # schemas
     url(r'^schemas/tables/?$', schemas.tables, name="schemas-tables"),
-    url(r'^schemas/views/?$', schemas.views, name="schemas-views"),
     url(r'^schemas/show/(.*)/(.*)/?$', schemas.show, name="schemas-show"),
     url(r'^schema/permissions/?$', schemas.permissions, name="schemas-permissions"),
     url(r'^schema/users/?$', schemas.users, name="schemas-users"),

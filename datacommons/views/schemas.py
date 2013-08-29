@@ -10,8 +10,7 @@ from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseTopology,
-    getColumnsForTable,
-    getViews
+    getColumnsForTable
 )
 from ..models import ColumnTypes, Table, TablePermission, Version, User
 from ..forms.schemas import PermissionsForm, TablePermissionsForm, CreateSchemaForm
@@ -23,15 +22,6 @@ def tables(request):
     return render(request, "schemas/list.html", {
         "schemas": schemas,
         "tables_only": True,
-    })
-
-@login_required
-def views(request):
-    """Display a nested list of all the schemas and tables in the database"""
-    schemas = getDatabaseTopology()
-    return render(request, "schemas/list.html", {
-        "schemas": schemas,
-        "views_only": True,
     })
 
 @login_required

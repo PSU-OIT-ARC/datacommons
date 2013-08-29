@@ -2,14 +2,17 @@
 {% block content %}
 <h2>Schemas</h2>
 <ol>
-{% for schema, tables in schemas.items %}
-    <li>{{ schema }}
-        {% if tables|length > 0 %}
+{% for schema in schemas %}
+    <li>{{ schema.name }}
+        {% if schema.tables|length > 0 %}
             <ol>
-            {% for table in tables %}
+            {% for table in schema.tables %}
                 <li>
                     <a href="{% url "schemas-show" schema table %}">{{ table }}</a>
                     <a href="{% url "api-schemas-tables" schema table 'csv' %}">(csv)</a>
+                    {% if table.is_view %}
+                        (view)
+                    {% endif %}
                 </li>
             {% endfor %}
             </ol>

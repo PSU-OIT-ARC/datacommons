@@ -22,27 +22,6 @@ def internalSanitize(value):
     value = value.lower().strip()
     return re.sub(r'[^a-z_0-9]', '', value)
 
-def getViews():
-    sql = """
-        SELECT
-            n.nspname AS table_schema, 
-            c.relname AS table_name
-        FROM 
-            pg_catalog.pg_class c
-        LEFT JOIN 
-            pg_catalog.pg_namespace n ON (n.oid = c.relnamespace)
-        WHERE 
-            c.relkind  = 'v' AND 
-            n.nspowner != 10"""
-
-    cursor = connection.cursor()
-    cursor.execute(sql)
-    schemas = {}
-    for schema, name in cursor.fetchall():
-        schemas.setdefault(schema, []).append(name)
-
-    return schemas
-
 class SchemataItem(object):
     def __unicode__(self):
         return self.name
