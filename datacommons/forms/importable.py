@@ -5,8 +5,9 @@ from django import forms
 from django.forms.widgets import RadioSelect
 from django.db import DatabaseError
 from ..models import ImportableUpload, ColumnTypes, Table
-from ..models.dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable, createTable, getDatabaseTopology
+from ..models.dbhelpers import getColumnsForTable, sanitize, isSaneName, getPrimaryKeysForTable, getDatabaseTopology
 from .utils import BetterForm
+from ..models import schemata
 
 class ImportableUploadForm(BetterForm):
     """This is the base class for importable file uploads"""
@@ -278,44 +279,6 @@ class ImportablePreviewForm(BetterForm):
                 fields.append(self[k])
         return fields
 
-    def cleanedPrimaryKeyColumnNames(self):
-        """Return a list of the names of the pk fields"""
-        data = []
-        index = 0
-        for k, v in self.fields.items():
-            if k.startswith("is_pk_"):
-                if self.cleaned_data[k]:
-                    data.append(self.cleaned_data["column_name_%d" % (index)])
-                index += 1
-        return data
-
-    def cleanedColumnNames(self):
-        """Return a list of the cleaned column name data"""
-        data = []
-        for k, v in self.fields.items():
-            if k.startswith("column_name_"):
-                data.append(self.cleaned_data[k])
-        return data
-
-    def cleanedColumnTypes(self):
-        """Return a list of the cleaned column types data"""
-        data = []
-        for k, v in self.fields.items():
-            if k.startswith("type_"):
-                data.append(self.cleaned_data[k])
-        return data
-
-    def mapColumnNameToColumnIndex(self):
-        """Return a map where the key is the column name, and the value is the
-        int representing the order of the column in the csv""" 
-        map = {}
-        index = 0
-        for field_name in self.fields:
-            if field_name.startswith("column_name_"):
-                map[self.cleaned_data[field_name]] = index
-                index += 1
-        return map
-
     def clean(self):
         cleaned_data = super(ImportablePreviewForm, self).clean()
         names = [] # save a copy of all the column names
@@ -346,23 +309,16 @@ class ImportablePreviewForm(BetterForm):
 
         return cleaned_data
 
-    def createTable(self, table, column_names, column_types, primary_keys):
-        createTable(table, column_names, column_types, primary_keys)
-
     def save(self, upload):
         if upload.mode == ImportableUpload.CREATE: 
             upload.table.name = self.cleaned_data['table']
             upload.table.save()
 
-            # build the table and insert all the data
-            column_names = self.cleanedColumnNames()
-            column_types = self.cleanedColumnTypes()
-            primary_keys = self.cleanedPrimaryKeyColumnNames()
             try:
-                self.createTable(upload.table, column_names, column_types, primary_keys)
+                self._createTable(upload.table)
                 self.importable.importInto(
                     upload.table,
-                    column_name_to_column_index=self.mapColumnNameToColumnIndex(),
+                    column_name_to_column_index=self._mapColumnNameToColumnIndex(),
                     mode=upload.mode,
                     user=upload.user)
             except DatabaseError as e:
@@ -376,7 +332,7 @@ class ImportablePreviewForm(BetterForm):
             try:
                 self.importable.importInto(
                     upload.table,
-                    column_name_to_column_index=self.mapColumnNameToColumnIndex(),
+                    column_name_to_column_index=self._mapColumnNameToColumnIndex(),
                     mode=upload.mode,
                     user=upload.user,
                 )
@@ -385,4 +341,60 @@ class ImportablePreviewForm(BetterForm):
 
         upload.status = upload.DONE
         upload.save()
+
+    def _createTable(self, table):
+        columns = self._columns()
+        schemata.Table.create(table, columns)
+
+    def _columns(self):
+        """Construct a list of schemata.Column objects that represent the
+        columns in the table to be created"""
+        column_names = self._cleanedColumnNames()
+        column_types = self._cleanedColumnTypes()
+        primary_keys = set(self._cleanedPrimaryKeyColumnNames())
+
+        columns = []
+        import pdb; pdb.set_trace()
+        for name, type in zip(column_names, column_types):
+            columns.append(schemata.Column(name, type, name in primary_keys))
+
+        return columns
+
+    def _cleanedPrimaryKeyColumnNames(self):
+        """Return a list of the names of the pk fields"""
+        data = []
+        index = 0
+        for k, v in self.fields.items():
+            if k.startswith("is_pk_"):
+                if self.cleaned_data[k]:
+                    data.append(self.cleaned_data["column_name_%d" % (index)])
+                index += 1
+        return data
+
+    def _cleanedColumnNames(self):
+        """Return a list of the cleaned column name data"""
+        data = []
+        for k, v in self.fields.items():
+            if k.startswith("column_name_"):
+                data.append(self.cleaned_data[k])
+        return data
+
+    def _cleanedColumnTypes(self):
+        """Return a list of the cleaned column types data"""
+        data = []
+        for k, v in self.fields.items():
+            if k.startswith("type_"):
+                data.append(self.cleaned_data[k])
+        return data
+
+    def _mapColumnNameToColumnIndex(self):
+        """Return a map where the key is the column name, and the value is the
+        int representing the order of the column in the csv""" 
+        map = {}
+        index = 0
+        for field_name in self.fields:
+            if field_name.startswith("column_name_"):
+                map[self.cleaned_data[field_name]] = index
+                index += 1
+        return map
 

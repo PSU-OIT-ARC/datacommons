@@ -12,7 +12,6 @@ from django.db import DatabaseError
 from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseTopology,
-    getColumnsForTable,
     SQLHandle
 )
 from ..models import ColumnTypes, Table, TablePermission, Version
@@ -20,20 +19,11 @@ from ..forms.querybuilder import CreateViewForm
 from datacommons.jsonencoder import JSONEncoder
 
 def build(request):
-    if request.POST:
-        form = CreateViewForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return HttpResponse(json.dumps({"success": True}))
-        return HttpResponse(json.dumps({"success": False, "errors": form.errors}))
-    else:
-        form = CreateViewForm()
-
     meta = getDatabaseTopology()
     return render(request, "querybuilder/build.html", {
-        "form": form,
         "schemata": json.dumps(meta, cls=JSONEncoder),
     })
+
 
 def preview(request, sql):
     q = SQLHandle(sql)
@@ -42,6 +32,7 @@ def preview(request, sql):
     rows = None
 
     page = request.GET.get("page")
+    cols = []
     try:
         try:
             rows = paginator.page(page)
@@ -51,12 +42,23 @@ def preview(request, sql):
             rows = paginator.page(paginator.num_pages)
     except DatabaseError as e:
         error = str(e)
+    else:
+        cols = q.cols
 
+
+    if request.POST:
+        form = CreateViewForm(request.POST, user=request.user)
+        if form.is_valid():
+            form.save()
+            return HttpResponse(json.dumps({"success": True}))
+    else:
+        form = CreateViewForm(user=request.user)
 
     return render(request, "querybuilder/preview.html", {
         "rows": rows,
-        "cols": q.cols,
+        "cols": cols,
         "error": error,
         "sql": sql,
+        "form": form,
     })
 

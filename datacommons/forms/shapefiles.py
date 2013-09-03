@@ -2,7 +2,7 @@ from django import forms
 from .csvs import ImportableUploadForm, ImportablePreviewForm
 from ..models.importable import ShapefileImport 
 from ..models import ColumnTypes
-from ..models.dbhelpers import createTable
+from ..models import schemata
 
 class ShapefileUploadForm(ImportableUploadForm):
     IMPORTABLE = ShapefileImport
@@ -40,10 +40,9 @@ class ShapefilePreviewForm(ImportablePreviewForm):
     def clean_geometry_pk(self):
         return False
 
-    def createTable(self, table, column_names, column_types, primary_keys):
+    def _columns(self):
+        columns = super(ShapefilePreviewForm, self)._columns()
         srid = self.importable.srid()
         type = self.importable.geometryType()
-        geometry_config = {'srid': srid, 'type': type}
-
-        createTable(table, column_names, column_types, primary_keys, geometry_config=geometry_config)
-
+        columns.append(Column("the_geom", ColumnTypes.GEOMETRY, False, srid=srid, geom_type=type))
+        return columns

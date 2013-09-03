@@ -1,3 +1,4 @@
+import datetime
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import get_user_model, authenticate
@@ -9,16 +10,18 @@ from .utils import BetterModelForm, BetterForm
 from django.conf import settings as SETTINGS
 from django.contrib.auth.forms import PasswordChangeForm
 from datacommons.models import User, Table
-from ..models.dbhelpers import isSaneName, createView, SQLHandle
+from ..models.dbhelpers import isSaneName, SQLHandle, getDatabaseTopology
+from ..models import schemata
 
 class CreateViewForm(BetterForm):
     view_name = forms.CharField()
     sql = forms.CharField()
 
     def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
         super(CreateViewForm, self).__init__(*args, **kwargs)
-        options = Table.objects.groupedBySchema()
-        self.fields['schema'] = forms.ChoiceField(choices=zip(options.keys(), options.keys()))
+        options = [s.name for s in getDatabaseTopology()]
+        self.fields['schema'] = forms.ChoiceField(choices=zip(options, options))
         self.fields['view_name'].widget.attrs.update({
             'class': 'span2',
             'placeholder': "View name",
@@ -45,7 +48,7 @@ class CreateViewForm(BetterForm):
         schema = cleaned.get("schema", None)
         if sql and view_name and schema:
             try:
-                createView(schema, view_name, sql, commit=False)
+                schemata.View.create(schemata.Schema(name=schema), view_name, sql, commit=False)
             except DatabaseError as e:
                 raise forms.ValidationError(str(e))
 
@@ -55,4 +58,7 @@ class CreateViewForm(BetterForm):
         schema = self.cleaned_data['schema']
         view_name = self.cleaned_data['view_name']
         sql = self.cleaned_data['sql']
-        createView(schema, view_name, sql, commit=True)
+        schemata.View.create(schemata.Schema(name=schema), view_name, sql, commit=False)
+        schemata.View.create(schema, view_name, sql, commit=False)
+        t = Table(name=view_name, schema=schema, created_on=datetime.datetime.now(), is_view=True, owner=self.user)
+        t.save()

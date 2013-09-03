@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block body %}
 
+<div class="alert alert-warning" style="text-align:center">
+    Close this window/tab to return to the query builder
+</div>
+
 {% if error %}
     <div class="alert alert-error">
         <h4>There was an error with the SQL:</h4>
@@ -8,10 +12,30 @@
         <p><strong>SQL was:</strong> {{ sql }}</p>
     </div>
 {% else %}
-    {% include '_paginator.html' with paginator=rows %}
     <h4>Preview</h4>
-    <p>Close this window/tab to return to the query builder</p>
+    <p>You can view your query results here. When you are satisfied, fill out the form below to save this query as a view.</p>
 
+    {% if form.errors %}
+        <div class="alert alert-error">
+            <h4>Some errors were detected</h4>
+            {{ form.non_field_errors }}
+        </div>
+    {% endif %}
+
+    <form class="form-inline" method="post" id="create-view">
+        <input type="hidden" name="sql" value="{{ sql }}" />
+        {{ form.schema.errors }}
+        {{ form.view_name.errors }}
+        {% csrf_token %}
+        <strong>Create view in </strong>
+        {{ form.schema }}
+        named
+        {{ form.view_name }}
+        <button class="btn" type="submit">Save</button>
+    </form>
+
+
+    {% include '_paginator.html' with paginator=rows %}
     <div class="overflowed">
         <table class="table table-striped">
             <thead>

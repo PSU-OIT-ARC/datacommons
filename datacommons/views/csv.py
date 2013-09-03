@@ -16,71 +16,14 @@ from ..models.dbhelpers import (
 from ..models import ColumnTypes, ImportableUpload
 from ..forms.csvs import ImportableUploadForm, CSVPreviewForm
 from datacommons.jsonencoder import JSONEncoder
+from .importable import upload as upload_view, preview as preview_view
 
 @login_required
 def upload(request):
     """Display the CSV upload form"""
-    schemas = getDatabaseTopology()
-    errors = {}
-    if request.POST:
-        form = ImportableUploadForm(request.POST, request.FILES, user=request.user)
-        if form.is_valid():
-            # save state and move to the preview
-            row = form.save()
-            return HttpResponseRedirect(reverse("csv-preview") + "?upload_id=" + str(row.pk))
-    else:
-        form = ImportableUploadForm(user=request.user)
-
-    schemas_json = json.dumps(schemas, cls=JSONEncoder)
-    return render(request, 'csv/upload.html', {
-        "schemas": schemas,
-        "schemas_json": schemas_json,
-        "errors": errors,
-        "ImportableUpload": ImportableUpload,
-        "form": form,
-    })
+    return upload_view(request, ImportableUploadForm, 'csv/upload.html', 'csv-preview')
 
 @login_required
 def preview(request):
     """Finalize the CSV upload"""
-    upload = ImportableUpload.objects.get(pk=request.REQUEST['upload_id'])
-    # authorized to view this upload?
-    if upload.user.pk != request.user.pk:
-        raise PermissionDenied()
-    if upload.status == upload.DONE:
-        raise PermissionDenied()
-
-    error = None
-    
-    if request.POST:
-        form = CSVPreviewForm(request.POST, upload=upload)
-        if form.is_valid():
-            try:
-                form.save(upload)
-            except DatabaseError as e:
-                error = str(e)
-            else:
-                messages.success(request, "You successfully imported the CSV!")
-                return HttpResponseRedirect(reverse('schemas-show', args=(upload.table.schema, upload.table.name)))
-    else:
-        form = CSVPreviewForm(upload=upload)
-
-    # fetch the meta data about the csv
-    column_names, data, column_types = form.importable.parse()
-    # grab the columns from the existing table
-    if upload.mode == ImportableUpload.APPEND:
-        existing_columns = getColumnsForTable(upload.table.schema, upload.table.name)
-    else:
-        existing_columns = None
-
-    available_types = ColumnTypes.TO_HUMAN
-
-    return render(request, "csv/preview.html", {
-        'data': data,
-        'upload': upload,
-        'error': error,
-        'existing_columns': existing_columns,
-        'existing_columns_json': json.dumps(existing_columns),
-        'pretty_type_name': json.dumps(available_types),
-        'form': form,
-    })
+    return preview_view(request, CSVPreviewForm, 'csv/preview.html')

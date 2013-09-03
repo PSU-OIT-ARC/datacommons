@@ -360,7 +360,15 @@ RelationshipView.prototype.toSQL = function(sql){
 
             // add in the join (making sure we only do this once)
             if(join_conditions.length == 0){
-                sql.from += rel.type + " JOIN " + table.table.fullName() + " AS " + table.name + " ON ";
+                var join_type = rel.type;
+                if(rel.a.table_view.key != table.key){
+                    if(join_type == "LEFT"){
+                        join_type = "RIGHT";
+                    } else if(join_type == "RIGHT"){
+                        join_type = "LEFT";
+                    }
+                }
+                sql.from += join_type + " JOIN " + table.table.fullName() + " AS " + table.name + " ON ";
             }
             
             // add this relationship to the join condition for this table,
@@ -464,9 +472,9 @@ RelationshipView.prototype.drawConnection = function(relationship){
         var end_y = b_offset.top + vertical_offset
 
         if(relationship.type == "LEFT"){
-            join_arrow = "RIGHT";
-        } else if(relationship.type == "RIGHT") {
             join_arrow = "LEFT";
+        } else if(relationship.type == "RIGHT") {
+            join_arrow = "RIGHT";
         } 
     } else {
         // the line connecting columns `a` and `b` should start at the left
@@ -478,9 +486,9 @@ RelationshipView.prototype.drawConnection = function(relationship){
         var end_y = b_offset.top + vertical_offset;
 
         if(relationship.type == "LEFT"){
-            join_arrow = "LEFT";
-        } else if(relationship.type == "RIGHT") {
             join_arrow = "RIGHT";
+        } else if(relationship.type == "RIGHT") {
+            join_arrow = "LEFT";
         } 
     }
 

@@ -2,9 +2,10 @@ from django.db import IntegrityError, transaction
 from django import forms
 from django.utils.datastructures import SortedDict
 from ..models import TablePermission, Table, User
-from ..models.dbhelpers import getDatabaseTopology, isSaneName, createSchema
+from ..models.dbhelpers import getDatabaseTopology, isSaneName
 import widgets
 from .utils import BetterForm
+from ..models import schemata
 
 class PermissionsForm(BetterForm):
     GRANT = 1
@@ -136,5 +137,4 @@ class CreateSchemaForm(BetterForm):
 
     def save(self):
         name = self.cleaned_data['name']
-        print name
-        createSchema(name)
+        schemata.Schema.create(name)

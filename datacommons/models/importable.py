@@ -16,7 +16,7 @@ from django.conf import settings as SETTINGS
 from django.contrib.gis import geos
 from django.db import connection, transaction, DatabaseError
 from .models import ColumnTypes, ImportableUpload, Version, TableMutator
-from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes, getColumnsForTable, fetchRowsFor
+from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes, fetchRowsFor
 from datacommons.unicodecsv import UnicodeReader
 
 class Importable(object):

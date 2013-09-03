@@ -5,6 +5,8 @@ from django.db import models, connection, transaction, DatabaseError
 from django.utils.datastructures import SortedDict
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 
+AUDIT_SCHEMA_NAME = "_version"
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **kwargs):
         if not email:
@@ -166,14 +168,28 @@ class DocUpload(models.Model):
         return u'%s' % (self.filename)
 
 class TableManager(models.Manager):
-    def groupedBySchema(self, owner=None):
+    def groupedBySchema(self, owner=None, include_views=False):
+        # build a set of all the (schema, table) tuples in the db
+        topology = getDatabaseTopology()
+        s = set()
+        for schema in topology:
+            for table in schema.tables:
+                s.add((schema.name, table.name))
+
         if owner is None:
             tables = Table.objects.exclude(created_on=None)
         else:
             tables = Table.objects.filter(owner=owner).exclude(created_on=None)
+
+        if not include_views:
+            tables = tables.exclude(is_view=True)
+
         results = SortedDict()
         for table in tables:
-            results.setdefault(table.schema, []).append(table)
+            # the tables in the database, and the tables in the "table" table
+            # might not quite match. So only return the results where there is a match
+            if (table.schema, table.name) in s:
+                results.setdefault(table.schema, []).append(table)
 
         return results
 
@@ -183,7 +199,7 @@ class Table(models.Model):
     name = models.CharField(max_length=255)
     schema = models.CharField(max_length=255)
     created_on = models.DateTimeField(null=True, default=None)
-    #is_view = models.BooleanField(default=False, blank=True)
+    is_view = models.BooleanField(default=False, blank=True)
 
     owner = models.ForeignKey(User, related_name="+")
     
@@ -255,81 +271,6 @@ class Table(models.Model):
         return rows
 
 
-class TableMutator(object):
-    def __init__(self, version):
-        table = version.table
-        self.column_info = getColumnsForTable(table.schema, table.name)
-
-        # build SQL query strings for inserting data and deleting data from the
-        # table itself, and the audit table
-        
-        # build the escape string for insert queries. A little complex because
-        # we have to handle Geometry columns. This requires the caller to add
-        # an srid dictionary key to the appropriate column.
-        escape_string = []
-        for col in self.column_info:
-            if col.type == ColumnTypes.GEOMETRY:
-                escape_string.append("ST_GeomFromText(%%s, %s)" % (col.srid))
-            else:
-                escape_string.append("%s")
-        escape_string = ",".join(escape_string)
-        safe_col_name_str = ",".join('"%s"' % sanitize(col.name) for col in self.column_info)
-        self.insert_sql = """INSERT INTO "%s"."%s" (%s) VALUES(%s)""" % (
-            sanitize(table.schema), 
-            sanitize(table.name),
-            safe_col_name_str,
-            escape_string,
-        )
-        self.audit_insert_sql = """INSERT INTO public."%s" (%s, _inserted_or_deleted, _version_id) VALUES(%s, 1, %s)""" % (
-            internalSanitize(table.auditTableName()),
-            safe_col_name_str, 
-            escape_string,
-            int(version.pk),
-        )
-
-        # now build the delete SQL strings
-        escape_string = " AND ".join(['"%s" = %%s' % sanitize(col.name) for col in self.column_info if col.is_pk])
-        self.delete_sql = 'DELETE FROM "%s"."%s" WHERE %s' % (
-            sanitize(table.schema), 
-            sanitize(table.name), 
-            escape_string
-        )
-        escape_string = ",".join(["%s" for col in self.column_info if col.is_pk])
-        safe_pk_name_str = ",".join(['"%s"' % sanitize(col.name) for col in self.column_info if col.is_pk])
-        self.audit_delete_sql = """INSERT INTO public.%s (%s, _inserted_or_deleted, _version_id) VALUES(%s, -1, %s)""" % (
-            internalSanitize(table.auditTableName()), 
-            safe_pk_name_str,
-            escape_string,
-            int(version.pk)
-        )
-        self.cursor = connection.cursor()
-
-    def insertRow(self, values):
-        """Values is a tuple of values that corresponds to the order of self.column_info"""
-        self._doSQL(self.insert_sql, values)
-        self._doSQL(self.audit_insert_sql, values)
-
-    def deleteRow(self, values):
-        """Values is a tuple of pk values that corresponds to the order of self.column_info"""
-        self._doSQL(self.delete_sql, values)
-        self._doSQL(self.audit_delete_sql, values)
-
-    def pkNames(self):
-        return [col.name for col in self.column_info if col.is_pk]
-
-    def columnNames(self):
-        return [col.name for col in self.column_info]
-
-    def _doSQL(self, sql, params):
-        cursor = self.cursor
-        try:
-            cursor.execute(sql, params)
-        except DatabaseError as e:
-            connection._rollback()
-            # tack on the SQL statement that caused the error
-            e.sql = connection.queries[-1]['sql']
-            raise
-
 class Version(models.Model):
     version_id = models.AutoField(primary_key=True)
     created_on = models.DateTimeField(auto_now_add=True)
@@ -349,6 +290,7 @@ class Version(models.Model):
             "table_name": table_name,
             "pks": ",".join('"%s"' % sanitize(col.name) for col in column_info if col.is_pk), 
             "audit_table_name": audit_table_name,
+            "audit_schema_name": AUDIT_SCHEMA_NAME,
             "table_columns": ",".join('%s."%s"' % (table_name, sanitize(col.name)) for col in column_info),
             "audit_table_columns": ",".join('%s."%s"' % (audit_table_name, col.name) for col in column_info),
         }
@@ -368,14 +310,14 @@ class Version(models.Model):
                         MAX(_version_id) AS _version_id,
                         %(pks)s
                     FROM
-                        %(audit_table_name)s
+                        %(audit_schema_name)s.%(audit_table_name)s
                     WHERE _version_id <= %%s
                     GROUP BY
                         %(pks)s
                     HAVING
                         SUM(_inserted_or_deleted) >= 0
                 ) pks
-                INNER JOIN %(audit_table_name)s USING(%(pks)s, _version_id)
+                INNER JOIN %(audit_schema_name)s.%(audit_table_name)s USING(%(pks)s, _version_id)
                 WHERE _inserted_or_deleted = 1
         ) _restore_to
 
@@ -421,11 +363,16 @@ class Version(models.Model):
         table = self.table
         audit_table_name = table.auditTableName()
         pks = getPrimaryKeysForTable(table.schema, table.name)
-        pks_str = ",".join(pks)
-        columns = [col['name'] for col in getColumnsForTable(table.schema, table.name)]
+        pks_str = ",".join(pk.name for pk in pks)
+        columns = [col.name for col in getColumnsForTable(table.schema, table.name)]
         columns_str = ",".join(columns)
 
-        safe_params = {"table": audit_table_name, "pks": pks_str, "columns": columns_str}
+        safe_params = {
+            "table": audit_table_name, 
+            "pks": pks_str, 
+            "columns": columns_str,
+            "schema": AUDIT_SCHEMA_NAME,
+        }
         params = (self.pk,)
         sql = """
         SELECT %(columns)s FROM
@@ -435,20 +382,20 @@ class Version(models.Model):
                 MAX(_version_id) AS _version_id, 
                 %(pks)s
             FROM 
-                %(table)s
+                %(schema)s.%(table)s
             WHERE _version_id <= %%s
             GROUP BY 
                 %(pks)s
             HAVING 
                 SUM(_inserted_or_deleted) >= 0
         ) pks
-        INNER JOIN %(table)s USING(%(pks)s, _version_id)
+        INNER JOIN %(schema)s.%(table)s USING(%(pks)s, _version_id)
         WHERE _inserted_or_deleted = 1
         ORDER BY %(pks)s
         """ % safe_params
         #cursor = connection.cursor()
         #cursor.execute(sql, params)
-        return PaginatorCompatibleSQL(sql, params)
+        return SQLHandle(sql, params, privileged=True)
 
 
 class TablePermission(models.Model):
@@ -466,4 +413,81 @@ class TablePermission(models.Model):
         db_table = 'tablepermission'
         unique_together = ("table", "user")
 
-from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable, sanitize, internalSanitize
+class TableMutator(object):
+    def __init__(self, version):
+        table = version.table
+        self.column_info = getColumnsForTable(table.schema, table.name)
+
+        # build SQL query strings for inserting data and deleting data from the
+        # table itself, and the audit table
+        
+        # build the escape string for insert queries. A little complex because
+        # we have to handle Geometry columns. This requires the caller to add
+        # an srid dictionary key to the appropriate column.
+        escape_string = []
+        for col in self.column_info:
+            if col.type == ColumnTypes.GEOMETRY:
+                escape_string.append("ST_GeomFromText(%%s, %s)" % (col.srid))
+            else:
+                escape_string.append("%s")
+        escape_string = ",".join(escape_string)
+        safe_col_name_str = ",".join('"%s"' % sanitize(col.name) for col in self.column_info)
+        self.insert_sql = """INSERT INTO "%s"."%s" (%s) VALUES(%s)""" % (
+            sanitize(table.schema), 
+            sanitize(table.name),
+            safe_col_name_str,
+            escape_string,
+        )
+        self.audit_insert_sql = """INSERT INTO "%s"."%s" (%s, _inserted_or_deleted, _version_id) VALUES(%s, 1, %s)""" % (
+            AUDIT_SCHEMA_NAME,
+            internalSanitize(table.auditTableName()),
+            safe_col_name_str, 
+            escape_string,
+            int(version.pk),
+        )
+
+        # now build the delete SQL strings
+        escape_string = " AND ".join(['"%s" = %%s' % sanitize(col.name) for col in self.column_info if col.is_pk])
+        self.delete_sql = 'DELETE FROM "%s"."%s" WHERE %s' % (
+            sanitize(table.schema), 
+            sanitize(table.name), 
+            escape_string
+        )
+        escape_string = ",".join(["%s" for col in self.column_info if col.is_pk])
+        safe_pk_name_str = ",".join(['"%s"' % sanitize(col.name) for col in self.column_info if col.is_pk])
+        self.audit_delete_sql = """INSERT INTO %s.%s (%s, _inserted_or_deleted, _version_id) VALUES(%s, -1, %s)""" % (
+            AUDIT_SCHEMA_NAME,
+            internalSanitize(table.auditTableName()), 
+            safe_pk_name_str,
+            escape_string,
+            int(version.pk)
+        )
+        self.cursor = connection.cursor()
+
+    def insertRow(self, values):
+        """Values is a tuple of values that corresponds to the order of self.column_info"""
+        self._doSQL(self.insert_sql, values)
+        self._doSQL(self.audit_insert_sql, values)
+
+    def deleteRow(self, values):
+        """Values is a tuple of pk values that corresponds to the order of self.column_info"""
+        self._doSQL(self.delete_sql, values)
+        self._doSQL(self.audit_delete_sql, values)
+
+    def pkNames(self):
+        return [col.name for col in self.column_info if col.is_pk]
+
+    def columnNames(self):
+        return [col.name for col in self.column_info]
+
+    def _doSQL(self, sql, params):
+        cursor = self.cursor
+        try:
+            cursor.execute(sql, params)
+        except DatabaseError as e:
+            connection._rollback()
+            # tack on the SQL statement that caused the error
+            e.sql = connection.queries[-1]['sql']
+            raise
+
+from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable, sanitize, internalSanitize, SQLHandle, getDatabaseTopology

@@ -1,5 +1,6 @@
 {% extends "main.html" %}
 {% block content %}
+
 <div id="query-builder">
     <div id="tables" class="table-view-container"></div>
 
@@ -13,15 +14,6 @@
             <a href="#" class="btn btn-small" id="toggle-totals">Totals</a>
             <a href="#" class="btn btn-small" id="view-sql">View SQL</a>
             <a href="#" class="btn btn-small" id="run-sql" target="preview">Preview</a>
-            <form class="pull-right form-inline" method="post" id="create-view">
-                <input type="hidden" name="sql" value="" id="actual-sql" />
-                {% csrf_token %}
-                Create view in 
-                {{ form.schema }}
-                named
-                {{ form.view_name }}
-                <button class="btn" type="submit">Create View</button>
-            </form>
         </div>
         <br style="clear:both" />
     </div>
@@ -107,7 +99,22 @@ $(document).ready(function(){
     $('#create-view').on('submit', function(){
         var sql_string = query_state.toSQL();
         $('#actual-sql').val(sql_string);
-        return true;
+        var data = $(this).serialize();
+        $('#error-block-list').html("");
+        $('#error-block').hide();
+        $.post(window.location, data, function(data){
+            if(data.success == false){
+                $('#error-block').show();
+                for(var k in data.errors){
+                    var errors = data.errors[k];
+                    for(var i = 0; i < errors.length; i++){
+                        $('#error-block-list').append("<li>" + errors[i] + "</li>");
+                    }
+                }
+            }
+            console.log(data);
+        }, 'json');
+        return false;
     });
 });
 

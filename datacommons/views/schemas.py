@@ -9,8 +9,7 @@ from django.db.models import Q
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from ..models.dbhelpers import (
     fetchRowsFor,
-    getDatabaseTopology,
-    getColumnsForTable
+    getDatabaseTopology
 )
 from ..models import ColumnTypes, Table, TablePermission, Version, User
 from ..forms.schemas import PermissionsForm, TablePermissionsForm, CreateSchemaForm
@@ -73,7 +72,7 @@ def restore(request, version_id):
 
     if request.POST:
         version.restore(user=request.user)
-        return HttpResponseRedirect(reverse("schemas-view", args=(version.table.schema, version.table.name)))
+        return HttpResponseRedirect(reverse("schemas-show", args=(version.table.schema, version.table.name)))
 
     return render(request, "schemas/restore.html", {
         "version": version,

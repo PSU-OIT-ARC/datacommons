@@ -1,147 +1,16 @@
-{% extends "main.html" %}
-{% block content %}
-{% load dictlookup %}
-
-<div class="alert alert-info"><strong>Note:</strong> Table and column names must be lower case, start with a letter, and
-consist only of the characters <samp>a-z</samp>, <samp>0-9</samp> and <samp>_</samp>. They can contain, at most, 63 characters.</div>
-
-<form action="" method="post" class="strong-labels">
-    {% csrf_token %}
-    {% if form.errors or error %}
-        <div class="alert alert-error">
-            <strong>Some errors were detected!</strong> You must fix them before you can continue.
-        </div>
-    {% endif %}
-
-    {% if error %}
-        <div class="alert alert-error">
-            {{ error }}
-        </div>
-    {% endif %}
-
-    {{ form.non_field_errors }}
-
-    {% if upload.mode == upload.CREATE %}
-        <label>Give this table a name:</label>
-        {{ form.table.errors }}
-        {{ form.table }}
-    {% elif upload.mode == upload.APPEND %}
-        <h2>Append to {{ upload.table }}</h2>
-    {% elif upload.mode == upload.DELETE %}
-        <h2>Delete rows from {{ upload.table }}</h2>
-    {% elif upload.mode == upload.UPSERT %}
-        <h2>Insert/Update rows in {{ upload.table }}</h2>
-    {% endif %}
-
-    <div id="preview-wrapper">
-        <table id="preview">
-            <thead>
-                <tr class="preview">
-                    {% if upload.mode == upload.CREATE %}
-                        <th colspan="{{ form.nameFields|length }}">Give each column a name:</th>
+{% extends "csv/preview.html" %}
+{% block data_loop %}
+    {% for row in data %}
+        <tr>
+            {% for col in row %}
+                <td>
+                    {% if forloop.last %}
+                        {{ col|truncatewords:1 }}
                     {% else %}
-                        <th colspan="{{ form.nameFields|length }}">For each column, select which field in the table corresponds to the data in the column.</th>
+                        {{ col }}
                     {% endif %}
-                </tr>
-                <tr class="preview">
-                    {% if upload.mode == upload.CREATE %}
-                        {% for field in form.nameFields %}
-                            <td>
-                                {{ field.errors }}
-                                {{ field }}
-                            </td>
-                        {% endfor %}
-                    {% else %}
-                        {% for field in form.nameFields %}
-                            <td class="select-type">
-                                {{ field.errors }}
-                                {{ field }}
-                            </td>
-                        {% endfor %}
-                    {% endif %}
-                </tr>
-                <tr class="preview">
-                    {% if upload.mode == upload.CREATE %}
-                        <th colspan="{{ form.nameFields|length }}">Choose a datatype for each column:</th>
-                    {% endif %}
-                </tr>
-                <tr class="preview">
-                    {% if upload.mode == upload.CREATE %}
-                        {% for field in form.typeFields %}
-                            <td>
-                                {{ field }}
-                            </td>
-                        {% endfor %}
-                    {% else %}
-                        {% for field in form.nameFields %}
-                            <td class="field-type" id="typelabel-{{ forloop.counter0}}"></td>
-                        {% endfor %}
-                    {% endif %}
-                </tr>
-                {% if upload.mode == upload.CREATE %}
-                    <tr>
-                        <th colspan="{{ form.nameFields|length }}">Check the checkbox if this field is the primary, or part of it  <i class="icon-info-sign" title="Some combination of rows must uniquely identify the row."></i></th>
-                    </tr>
-                    <tr class="light-labels">
-                        {% for field in form.pkFields %}
-                            <td><label class="checkbox">{{ field }}Primary Key</label></td>
-                        {% endfor %}
-                    </tr>
-                {% endif %}
-                <tr>
-                    <th colspan="{{ form.nameFields|length }}">Data Preview</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in data %}
-                    <tr>
-                        {% for col in row %}
-                            <td>
-                                {% if forloop.last %}
-                                    {{ col|truncatewords:1 }}
-                                {% else %}
-                                    {{ col }}
-                                {% endif %}
-                            </td>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <br />
-
-    <input type="hidden" name="upload_id" value="{{ upload.pk }}" />
-    <input type="submit" name="submit" value="Import" id="submit" />
-</form>
-
-<script type="text/javascript">
-
-{% if upload.mode == upload.APPEND %}
-    var COLUMN_NAME_TO_TYPE = {{ existing_columns_json|safe }};
-    var TYPE_TO_STRING = {{ pretty_type_name|safe }};
-    var map = []
-    for(var i = 0; i < COLUMN_NAME_TO_TYPE.length; i++){
-        var item = COLUMN_NAME_TO_TYPE[i];
-        map[item['name']] = item['type'];
-    }
-    COLUMN_NAME_TO_TYPE = map
-
-    $(document).ready(function(){
-        $('.select-type select').bind('click blur change', function(e){
-            var el = $(this);
-            var id = el.attr('id').split("-")[1]
-            var name = el.val();
-            var type = COLUMN_NAME_TO_TYPE[name];
-            var label = TYPE_TO_STRING[type];
-            $('#typelabel-' + id).text(label);
-        });
-
-        $('.select-type select').click()
-    });
-{% endif %}
-
-</script>
-
+                </td>
+            {% endfor %}
+        </tr>
+    {% endfor %}
 {% endblock %}
