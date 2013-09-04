@@ -1,7 +1,6 @@
 import json
 import requests
 from itertools import izip
-import re
 import uuid
 import os
 import zipfile
@@ -10,20 +9,58 @@ import fnmatch
 from django.forms import ValidationError
 from django.conf import settings as SETTINGS
 from shapely.geometry import asShape
-import fnmatch
-from django.forms import ValidationError
-from django.conf import settings as SETTINGS
-from django.contrib.gis import geos
-from django.db import connection, transaction, DatabaseError
-from .models import ColumnTypes, ImportableUpload, Version, TableMutator
-from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes, fetchRowsFor
+from django.db import models, connection, transaction, DatabaseError
 from datacommons.unicodecsv import UnicodeReader
+from .models import ColumnTypes, Version, TableMutator, User
+from .dbhelpers import sanitize, getPrimaryKeysForTable, inferColumnTypes, fetchRowsFor
 
-class Importable(object):
+class ImportableUpload(models.Model):
+    """This class represents a file in the process of being uploaded and
+    imported. It must be subclassed and subclasses must declare themselves as
+    proxys in the their Meta class. See the comments below the Meta class for
+    more info on subclassing"""
+    # mode enums
+    CREATE = 1
+    APPEND = 2
+    UPSERT = 3
+    DELETE = 4
+    REPLACE = 5
+
+    # status enums
+    DONE = 4
+    PENDING = 8
+
+    upload_id = models.AutoField(primary_key=True)
+    created_on = models.DateTimeField(auto_now_add=True)
+    # filename relative to MEDIA_ROOT
+    filename = models.CharField(max_length=255)
+    status = models.IntegerField(choices=((DONE, "Done"), (PENDING, "Pending")), default=PENDING)
+    mode = models.IntegerField(choices=(
+        (APPEND, "Append"), 
+        (CREATE, "Create"),
+        (UPSERT, "Upsert"),
+        (DELETE, "Delete"),
+        (REPLACE, "Replace"),
+    ))
+
+    table = models.ForeignKey('Table')
+    user = models.ForeignKey(User, related_name='+', null=True, default=None)
+
+    class Meta:
+        db_table = 'csv' # TODO rename
+
+    def __unicode__(self):
+        return u'%s.%s' % (self.table.schema, self.table.name)
+
+    @property
+    def path(self):
+        """Return the full path to the file this object represents"""
+        return os.path.join(SETTINGS.MEDIA_ROOT, self.filename)
+
+
     """
-    This is an abstract base class. CSV files and shapefiles subclass from
-    this. It provides a method to upload a file, parse it, iterate over it, and
-    insert/update/delete it into the database
+    Subclasses need to provide a way to upload the file, a way to parse the
+    file, and a way to iterate over it. 
     """
 
     ALLOWED_CONTENT_TYPES = []
@@ -40,50 +77,57 @@ class Importable(object):
             for chunk in f.chunks():
                 dest.write(chunk)
 
-        return cls(filename)
-
-    def __init__(self, filename):
-        self.path = os.path.join(SETTINGS.MEDIA_ROOT, filename)
+        return cls(filename=filename)
 
     def parse(self):
         """Parse a file and return the header row, some of the data rows and
-        inferred data types"""
+        inferred data types.
+
+        For example, a CSV file would return something like
+
+        return ["id", "name"], [[1, "Matt"], [13, "John"]], [ColumnTypes.INTEGER, ColumnTypes.TEXT]
+        """
+        
         raise NotImplementedError("You must implement the parse method")
 
     def __iter__(self):
         """
         Provide a mechanism to iterate over the importable object that this
-        class represents
+        class represents.
+
+        For example, a CSV would iterate through all the data rows
+
+        for row in some_csv_file:
+            yield row
         """
         raise NotImplementedError("You must implement the __iter__ method")
 
-    def importInto(self, table, column_name_to_column_index, mode, user=None):
+    def importInto(self, column_name_to_column_index):
         """Read a file and insert into schema_name.table_name"""
         # create a new version for the table
         with transaction.commit_on_success():
-            version = Version(user=user, table=table)
+            version = Version(user=self.user, table=self.table)
             version.save()
 
             tm = TableMutator(version)
-            # add the srid of the geometry column to the TableMutator's column_info
-            for col in tm.column_info:
-                if col.type == ColumnTypes.GEOMETRY:
-                    col.srid = self.srid()
-
-            do_insert = mode in [ImportableUpload.CREATE, ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]
-            do_delete = mode in [ImportableUpload.UPSERT, ImportableUpload.DELETE]
+            do_insert = self.mode in [ImportableUpload.CREATE, ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]
+            do_delete = self.mode in [ImportableUpload.UPSERT, ImportableUpload.DELETE]
 
             pks = tm.pkNames()
             column_names = tm.columnNames()
 
             # execute the query string for every row
             try:
-                if mode == ImportableUpload.REPLACE:
+                if self.mode == ImportableUpload.REPLACE:
                     # delete every existing row
-                    rows, cols = fetchRowsFor(table.schema, table.name, pks)
-                    for row in rows:
-                        tm.deleteRow(row)
+                    tm.deleteAllRows()
+            except DatabaseError as e:
+                raise DatabaseError("Tried to delete all rows, got this `%s`. SQL was: `%s`:" % (
+                    str(e),
+                    e.sql,
+                ))
 
+            try:
                 for row_i, row in enumerate(self):
                     # convert empty strings to null
                     for col_i, col in enumerate(row):
@@ -102,18 +146,21 @@ class Importable(object):
                         tm.insertRow(params)
             except DatabaseError as e:
                 raise DatabaseError("Tried to insert line %d of the data, got this `%s`. SQL was: `%s`:" % (
-                    row_i,
+                    row_i+1,
                     str(e),
                     e.sql,
                 ))
 
 
-class CSVImport(Importable):
+class CSVImport(ImportableUpload):
     ALLOWED_CONTENT_TYPES = [
         'text/csv', 
         'application/vnd.ms-excel', 
         'text/comma-separated-values',
     ]
+
+    class Meta:
+        proxy = True
 
     def parse(self):
         """Parse a CSV and return the header row, some of the data rows and
@@ -153,10 +200,13 @@ class CSVImport(Importable):
                 yield row
 
 
-class ShapefileImport(Importable):
+class ShapefileImport(ImportableUpload):
     ALLOWED_CONTENT_TYPES = [
         'application/x-zip-compressed',
     ]
+
+    class Meta:
+        proxy = True
 
     @classmethod
     def upload(cls, f):

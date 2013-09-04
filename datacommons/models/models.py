@@ -99,44 +99,7 @@ class ColumnTypes:
     def fromPGTypeName(cls, type_code):
         """Convert a PG column type like "timestamp" to a type number"""
         # assume user defined types are geometries
-        if type_code == "USER-DEFINED":
-            return cls.GEOMETRY
-        # invert the PG_TYPE_NAME dict
         return dict(zip(cls.TO_PG_TYPE.values(), cls.TO_PG_TYPE.keys()))[type_code]
-
-class ImportableUpload(models.Model):
-    # mode
-    CREATE = 1
-    APPEND = 2
-    UPSERT = 3
-    DELETE = 4
-    REPLACE = 5
-
-    # status
-    DONE = 4
-    PENDING = 8
-
-    upload_id = models.AutoField(primary_key=True)
-    created_on = models.DateTimeField(auto_now_add=True)
-    filename = models.CharField(max_length=255)
-    status = models.IntegerField(choices=((DONE, "Done"), (PENDING, "Pending")), default=PENDING)
-    mode = models.IntegerField(choices=(
-        (APPEND, "Append"), 
-        (CREATE, "Create"),
-        (UPSERT, "Upsert"),
-        (DELETE, "Delete"),
-        (REPLACE, "Replace"),
-    ))
-
-    table = models.OneToOneField('Table')
-    user = models.ForeignKey(User, related_name='+', null=True, default=None)
-
-    class Meta:
-        db_table = 'csv'
-        #ordering = ['created_on']
-
-    def __unicode__(self):
-        return u'%s.%s' % (self.table.schema, self.table.name)
 
 class Source(models.Model):
     source_id = models.AutoField(primary_key=True)
@@ -167,34 +130,8 @@ class DocUpload(models.Model):
     def __unicode__(self):
         return u'%s' % (self.filename)
 
-class TableManager(models.Manager):
-    def groupedBySchema(self, owner=None, include_views=False):
-        # build a set of all the (schema, table) tuples in the db
-        topology = getDatabaseTopology()
-        s = set()
-        for schema in topology:
-            for table in schema.tables:
-                s.add((schema.name, table.name))
 
-        if owner is None:
-            tables = Table.objects.exclude(created_on=None)
-        else:
-            tables = Table.objects.filter(owner=owner).exclude(created_on=None)
-
-        if not include_views:
-            tables = tables.exclude(is_view=True)
-
-        results = SortedDict()
-        for table in tables:
-            # the tables in the database, and the tables in the "table" table
-            # might not quite match. So only return the results where there is a match
-            if (table.schema, table.name) in s:
-                results.setdefault(table.schema, []).append(table)
-
-        return results
-
-
-class Table(models.Model):
+class TableOrView(models.Model):
     table_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255)
     schema = models.CharField(max_length=255)
@@ -203,72 +140,12 @@ class Table(models.Model):
 
     owner = models.ForeignKey(User, related_name="+")
     
-    objects = TableManager()
-
     class Meta:
         db_table = 'table'
         ordering = ['schema', 'name']
 
     def __unicode__(self):
         return u'%s' % (self.name)
-
-    def auditTableName(self):
-        return "_" + self.schema + "_" + self.name
-
-    def canDo(self, user, permission_bit, perm=None):
-        # owner can always do stuff
-        if self.owner == user:
-            return True
-
-        try:
-            if not perm:
-                perm = TablePermission.objects.get(table=self, user=user)
-        except TablePermission.DoesNotExist:
-            return False
-
-        return bool(perm.permission & permission_bit)
-
-    def canInsert(self, user, perm=None):
-        return self.canDo(user, TablePermission.INSERT, perm)
-    def canUpdate(self, user, perm=None):
-        return self.canDo(user, TablePermission.UPDATE, perm)
-    def canDelete(self, user, perm=None):
-        return self.canDo(user, TablePermission.DELETE, perm)
-    def canRestore(self, user, perm=None):
-        return self.canInsert(user, perm) and self.canUpdate(user, perm) and self.canDelete(user, perm)
-
-    def grant(self, user, perm_bit):
-        try:
-            perm = TablePermission.objects.get(table=self, user=user)
-        except TablePermission.DoesNotExist:
-            perm = TablePermission(table=self, user=user, permission=0)
-
-        perm.permission |= perm_bit
-        perm.save()
-
-    def revoke(self, user, perm_bit):
-        try:
-            perm = TablePermission.objects.get(table=self, user=user)
-        except TablePermission.DoesNotExist:
-            perm = TablePermission(table=self, user=user, permission=0)
-
-        perm.permission &= ~perm_bit
-        perm.save()
-
-        # if there are no permissions set, just delete the record
-        if perm.permission == 0:
-            perm.delete()
-
-    def permissionGrid(self):
-        perms = TablePermission.objects.filter(table=self).select_related("user")
-        rows = {}
-        for perm in perms:
-            item = rows.setdefault(perm.user, {})
-            item['can_insert'] = self.canInsert(perm.user, perm)
-            item['can_update'] = self.canUpdate(perm.user, perm)
-            item['can_delete'] = self.canDelete(perm.user, perm)
-
-        return rows
 
 
 class Version(models.Model):
@@ -405,7 +282,7 @@ class TablePermission(models.Model):
     DELETE = 4
 
     table_permission_id = models.AutoField(primary_key=True)
-    table = models.ForeignKey(Table)
+    table = models.ForeignKey('Table')
     user = models.ForeignKey(User)
     permission = models.IntegerField()
 
@@ -415,8 +292,8 @@ class TablePermission(models.Model):
 
 class TableMutator(object):
     def __init__(self, version):
-        table = version.table
-        self.column_info = getColumnsForTable(table.schema, table.name)
+        self.table = version.table
+        self.column_info = getColumnsForTable(self.table.schema, self.table.name)
 
         # build SQL query strings for inserting data and deleting data from the
         # table itself, and the audit table
@@ -433,14 +310,14 @@ class TableMutator(object):
         escape_string = ",".join(escape_string)
         safe_col_name_str = ",".join('"%s"' % sanitize(col.name) for col in self.column_info)
         self.insert_sql = """INSERT INTO "%s"."%s" (%s) VALUES(%s)""" % (
-            sanitize(table.schema), 
-            sanitize(table.name),
+            sanitize(self.table.schema), 
+            sanitize(self.table.name),
             safe_col_name_str,
             escape_string,
         )
         self.audit_insert_sql = """INSERT INTO "%s"."%s" (%s, _inserted_or_deleted, _version_id) VALUES(%s, 1, %s)""" % (
             AUDIT_SCHEMA_NAME,
-            internalSanitize(table.auditTableName()),
+            internalSanitize(self.table.auditTableName()),
             safe_col_name_str, 
             escape_string,
             int(version.pk),
@@ -449,15 +326,15 @@ class TableMutator(object):
         # now build the delete SQL strings
         escape_string = " AND ".join(['"%s" = %%s' % sanitize(col.name) for col in self.column_info if col.is_pk])
         self.delete_sql = 'DELETE FROM "%s"."%s" WHERE %s' % (
-            sanitize(table.schema), 
-            sanitize(table.name), 
+            sanitize(self.table.schema), 
+            sanitize(self.table.name), 
             escape_string
         )
         escape_string = ",".join(["%s" for col in self.column_info if col.is_pk])
         safe_pk_name_str = ",".join(['"%s"' % sanitize(col.name) for col in self.column_info if col.is_pk])
         self.audit_delete_sql = """INSERT INTO %s.%s (%s, _inserted_or_deleted, _version_id) VALUES(%s, -1, %s)""" % (
             AUDIT_SCHEMA_NAME,
-            internalSanitize(table.auditTableName()), 
+            internalSanitize(self.table.auditTableName()), 
             safe_pk_name_str,
             escape_string,
             int(version.pk)
@@ -473,6 +350,12 @@ class TableMutator(object):
         """Values is a tuple of pk values that corresponds to the order of self.column_info"""
         self._doSQL(self.delete_sql, values)
         self._doSQL(self.audit_delete_sql, values)
+
+    def deleteAllRows(self):
+        pks = self.pkNames()
+        rows, cols = fetchRowsFor(self.table.schema, self.table.name, pks)
+        for row in rows:
+            tm.deleteRow(row)
 
     def pkNames(self):
         return [col.name for col in self.column_info if col.is_pk]
@@ -491,3 +374,5 @@ class TableMutator(object):
             raise
 
 from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable, sanitize, internalSanitize, SQLHandle, getDatabaseTopology
+from .importable import ImportableUpload, CSVImport, ShapefileImport
+from .schemata import Table

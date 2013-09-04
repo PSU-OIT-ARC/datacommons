@@ -82,8 +82,9 @@ def getDatabaseTopology():
             t.table_name,
             t.table_type,
             c.column_name,
-            c.data_type,
-            pks.constraint_type
+            CASE WHEN c.data_type = 'USER-DEFINED' THEN 'geometry' ELSE c.data_type END AS data_type,
+            pks.constraint_type,
+            CASE WHEN c.data_type = 'USER-DEFINED' THEN Find_SRID(nspname::varchar, t.table_name::varchar, c.column_name::varchar) ELSE NULL END AS srid
         FROM
             pg_namespace
         LEFT JOIN
@@ -120,7 +121,7 @@ def getDatabaseTopology():
     cursor.execute(sql, (AUDIT_SCHEMA_NAME,))
 
     topology = []
-    for schema_name, table_name, table_type, column_name, data_type, constraint_type in cursor.fetchall():
+    for schema_name, table_name, table_type, column_name, data_type, constraint_type, srid in cursor.fetchall():
         # add the schema object
         if len(topology) == 0 or topology[-1].name != schema_name:
             topology.append(Schema(schema_name))
@@ -129,18 +130,19 @@ def getDatabaseTopology():
         # this schema has no tables, so move on
         if not table_name: continue
 
-        if len(schema.tables) == 0 or schema.tables[-1].name != table_name:
-            if table_type == "VIEW":
-                schema.views.append(View(table_name))
+        if table_type == "VIEW":
+            if len(schema.views) == 0 or table_name != schema.views[-1].name:
+                schema.views.append(View(name=table_name))
                 table = schema.views[-1]
-            else:
-                schema.tables.append(Table(table_name))
+        else:
+            if len(schema.tables) == 0 or table_name != schema.tables[-1].name:
+                schema.tables.append(Table(name=table_name))
                 table = schema.tables[-1]
 
         # this table has no columns, so move on
         if not column_name: continue
 
-        table.columns.append(Column(column_name, ColumnTypes.fromPGTypeName(data_type), constraint_type is not None))
+        table.columns.append(Column(column_name, ColumnTypes.fromPGTypeName(data_type), constraint_type is not None, srid=srid))
 
     return topology
 

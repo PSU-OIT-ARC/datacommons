@@ -5,10 +5,10 @@ from ..models import ColumnTypes
 from ..models import schemata
 
 class ShapefileUploadForm(ImportableUploadForm):
-    IMPORTABLE = ShapefileImport
+    MODEL = ShapefileImport
 
 class ShapefilePreviewForm(ImportablePreviewForm):
-    IMPORTABLE = ShapefileImport
+    MODEL = ShapefileImport
 
     def __init__(self, *args, **kwargs):
         super(ShapefilePreviewForm, self).__init__(*args, **kwargs)
@@ -17,9 +17,9 @@ class ShapefilePreviewForm(ImportablePreviewForm):
         for k, v in self.fields.items():
             if k.startswith("column_name_"):
                 index = int(k[len("column_name_"):])
-                if index > last_field_index:
-                    last_field_index = index
+                last_field_index = max(index, last_field_index)
 
+        # make the geom field disabled and not required
         self.fields['column_name_%d' % last_field_index].widget.attrs["disabled"] = "disabled"
         self.fields['column_name_%d' % last_field_index].required = False
         self.fields['type_%d' % last_field_index].widget.attrs["disabled"] = "disabled"
@@ -27,22 +27,19 @@ class ShapefilePreviewForm(ImportablePreviewForm):
         self.fields['is_pk_%d' % last_field_index].widget.attrs["disabled"] = "disabled"
         self.fields['is_pk_%d' % last_field_index].required = False
 
-        setattr(self, "clean_column_name_%d" % last_field_index, lambda: self.clean_geometry_name())
-        setattr(self, "clean_type_%d" % last_field_index, lambda: self.clean_geometry_type())
-        setattr(self, "clean_is_pk_%d" % last_field_index, lambda: self.clean_geometry_pk())
-
-    def clean_geometry_name(self):
-        return "the_geom"
-
-    def clean_geometry_type(self):
-        return ColumnTypes.GEOMETRY
-
-    def clean_geometry_pk(self):
-        return False
+        # create the clean_* methods for all the geom fields. The field
+        # name will always be "the_geom" and it will always be of type GEOMETRY
+        # and always not part of the PK 
+        setattr(self, "clean_column_name_%d" % last_field_index, lambda: "the_geom")
+        setattr(self, "clean_type_%d" % last_field_index, lambda: ColumnTypes.GEOMETRY)
+        setattr(self, "clean_is_pk_%d" % last_field_index, lambda: False)
 
     def _columns(self):
         columns = super(ShapefilePreviewForm, self)._columns()
-        srid = self.importable.srid()
-        type = self.importable.geometryType()
-        columns.append(Column("the_geom", ColumnTypes.GEOMETRY, False, srid=srid, geom_type=type))
+        # the last column is assumed to be the geometry column
+        # add on the srid and geom type
+        srid = self.model.srid()
+        type = self.model.geometryType()
+        columns[-1].srid = srid
+        columns[-1].geom_type = type
         return columns

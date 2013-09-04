@@ -1,5 +1,3 @@
-import os
-import re
 import json
 from django.conf import settings as SETTINGS
 from django.http import HttpResponse, HttpResponseRedirect
@@ -7,7 +5,6 @@ from django.shortcuts import render, get_object_or_404
 from django.core.urlresolvers import reverse
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
-from django.views.generic.base import View
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from ..models.dbhelpers import (
@@ -15,10 +12,9 @@ from ..models.dbhelpers import (
     getColumnsForTable,
 )
 from ..models import ColumnTypes, ImportableUpload
-from ..forms.shapefiles import ShapefileUploadForm, ShapefilePreviewForm
 from datacommons.jsonencoder import JSONEncoder
 
-def upload(request, form_class, template_name, redirect_to):
+def upload(request, form_class, template_name, redirect_to, filetype):
     schemas = getDatabaseTopology()
     errors = {}
     if request.POST:
@@ -37,37 +33,38 @@ def upload(request, form_class, template_name, redirect_to):
         "errors": errors,
         "ImportableUpload": ImportableUpload,
         "form": form,
+        "filetype": filetype,
     })
 
 def preview(request, form_class, template_name):
     """Finalize the shapefile upload"""
-    upload = ImportableUpload.objects.get(pk=request.REQUEST['upload_id'])
+    model = form_class.MODEL.objects.get(pk=request.REQUEST['upload_id'])
     # authorized to view this upload?
-    if upload.user.pk != request.user.pk:
+    if model.user.pk != request.user.pk:
         raise PermissionDenied()
-    if upload.status == upload.DONE:
+    if model.status == model.DONE:
         raise PermissionDenied()
 
     error = None
     
     if request.POST:
-        form = form_class(request.POST, upload=upload)
+        form = form_class(request.POST, model=model)
         if form.is_valid():
             try:
-                form.save(upload)
+                form.save(model)
             except DatabaseError as e:
                 error = str(e)
             else:
                 messages.success(request, "You successfully imported the file!")
-                return HttpResponseRedirect(reverse('schemas-view', args=(upload.table.schema, upload.table.name)))
+                return HttpResponseRedirect(reverse('schemas-show', args=(model.table.schema, model.table.name)))
     else:
-        form = form_class(upload=upload)
+        form = form_class(model=model)
 
     # fetch the meta data about the shapfile
-    column_names, data, column_types = form.importable.parse()
+    column_names, data, column_types = form.model.parse()
     # grab the columns from the existing table
-    if upload.mode == ImportableUpload.APPEND:
-        existing_columns = getColumnsForTable(upload.table.schema, upload.table.name)
+    if model.mode == ImportableUpload.APPEND:
+        existing_columns = getColumnsForTable(model.table.schema, model.table.name)
     else:
         existing_columns = []
 
@@ -75,7 +72,7 @@ def preview(request, form_class, template_name):
 
     return render(request, template_name, {
         'data': data,
-        'upload': upload,
+        'upload': model,
         'error': error,
         'col_name_to_human_type_json': json.dumps(name_to_human_type),
         'form': form,

@@ -1,11 +1,11 @@
 from django.contrib.auth.decorators import login_required
-from ..forms.csvs import ImportableUploadForm, CSVPreviewForm
+from ..forms.csvs import CSVUploadForm, CSVPreviewForm
 from .importable import upload as upload_view, preview as preview_view
 
 @login_required
 def upload(request):
     """Display the CSV upload form"""
-    return upload_view(request, ImportableUploadForm, 'csv/upload.html', 'csv-preview')
+    return upload_view(request, CSVUploadForm, 'csv/upload.html', 'csv-preview', filetype="CSV")
 
 @login_required
 def preview(request):

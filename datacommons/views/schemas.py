@@ -20,7 +20,6 @@ def tables(request):
     schemas = getDatabaseTopology()
     return render(request, "schemas/list.html", {
         "schemas": schemas,
-        "tables_only": True,
     })
 
 @login_required
@@ -79,7 +78,6 @@ def restore(request, version_id):
         "table": version.table,
     })
 
-
 @login_required
 def create(request):
     # make sure the user has permissions to do the creation
@@ -108,7 +106,6 @@ def permissions(request):
         "groups": groups,
         "form": form,
     })
-
 
 @login_required
 def permissionsDetail(request, table_id):

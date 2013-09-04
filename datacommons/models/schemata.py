@@ -1,8 +1,5 @@
-from .models import ColumnTypes, AUDIT_SCHEMA_NAME
-from django.db import connection, transaction, DatabaseError, connections
-
-class Topology(object):
-    _instance = None
+from .models import ColumnTypes, AUDIT_SCHEMA_NAME, TableOrView, TablePermission
+from django.db import models, connection, transaction, DatabaseError, connections
 
 class SchemataItem(object):
     def __unicode__(self):
@@ -15,7 +12,7 @@ class Schema(SchemataItem):
         self.name = name
 
     def __iter__(self):
-        return iter(self.tables)
+        return iter(self.tables + self.views)
 
     @classmethod
     def create(cls, name):
@@ -31,14 +28,21 @@ class Schema(SchemataItem):
 
         transaction.commit_unless_managed()
 
-class View(SchemataItem):
-    def __init__(self, name):
+class View(SchemataItem, TableOrView):
+    class Meta:
+        proxy = True
+
+    def __init__(self, *args, **kwargs):
+        super(View, self).__init__(*args, **kwargs)
         self.columns = []
-        self.name = name
+        self.name = self.name or kwargs.pop("name")
         self.is_view = True
 
+    def toJSON(self):
+        return {"name": self.name, "columns": self.columns, "is_view": self.is_view}
+
     @classmethod
-    def create(schema, name, sql, commit=False):
+    def create(cls, schema, name, sql, commit=False):
         # this will raise a database Error is there is a problem with the SQL (hopefully)
         SQLHandle(sql).count()
         cursor = connection.cursor()
@@ -48,14 +52,110 @@ class View(SchemataItem):
         else:
             connection._rollback()
 
-class Table(SchemataItem):
-    def __init__(self, name):
+class TableManager(models.Manager):
+    def get_queryset(self):
+        return super(TableManager, self).get_queryset().filter(is_view=False)
+
+    def groupedBySchema(self, owner=None, include_views=False):
+        # build a set of all the (schema, table) tuples in the db
+        topology = getDatabaseTopology()
+        s = set()
+        for schema in topology:
+            for table in schema.tables:
+                s.add((schema.name, table.name))
+
+        if owner is None:
+            tables = Table.objects.exclude(created_on=None)
+        else:
+            tables = Table.objects.filter(owner=owner).exclude(created_on=None)
+
+        if not include_views:
+            tables = tables.exclude(is_view=True)
+
+        results = SortedDict()
+        for table in tables:
+            # the tables in the database, and the tables in the "table" table
+            # might not quite match. So only return the results where there is a match
+            if (table.schema, table.name) in s:
+                results.setdefault(table.schema, []).append(table)
+
+        return results
+
+class Table(SchemataItem, TableOrView):
+    objects = TableManager()
+
+    class Meta:
+        proxy = True
+
+    def __init__(self, *args, **kwargs):
+        super(Table, self).__init__(*args, **kwargs)
         self.columns = []
-        self.name = name
+        self.name = self.name or kwargs.pop("name")
         self.is_view = False
 
     def __iter__(self):
         return iter(self.columns)
+
+    def toJSON(self):
+        return {"name": self.name, "columns": self.columns, "is_view": self.is_view}
+
+    def auditTableName(self):
+        return "_" + self.schema + "_" + self.name
+
+    def canDo(self, user, permission_bit, perm=None):
+        # owner can always do stuff
+        if self.owner == user:
+            return True
+
+        try:
+            if not perm:
+                perm = TablePermission.objects.get(table=self, user=user)
+        except TablePermission.DoesNotExist:
+            return False
+
+        return bool(perm.permission & permission_bit)
+
+    def canInsert(self, user, perm=None):
+        return self.canDo(user, TablePermission.INSERT, perm)
+    def canUpdate(self, user, perm=None):
+        return self.canDo(user, TablePermission.UPDATE, perm)
+    def canDelete(self, user, perm=None):
+        return self.canDo(user, TablePermission.DELETE, perm)
+    def canRestore(self, user, perm=None):
+        return self.canInsert(user, perm) and self.canUpdate(user, perm) and self.canDelete(user, perm)
+
+    def grant(self, user, perm_bit):
+        try:
+            perm = TablePermission.objects.get(table=self, user=user)
+        except TablePermission.DoesNotExist:
+            perm = TablePermission(table=self, user=user, permission=0)
+
+        perm.permission |= perm_bit
+        perm.save()
+
+    def revoke(self, user, perm_bit):
+        try:
+            perm = TablePermission.objects.get(table=self, user=user)
+        except TablePermission.DoesNotExist:
+            perm = TablePermission(table=self, user=user, permission=0)
+
+        perm.permission &= ~perm_bit
+        perm.save()
+
+        # if there are no permissions set, just delete the record
+        if perm.permission == 0:
+            perm.delete()
+
+    def permissionGrid(self):
+        perms = TablePermission.objects.filter(table=self).select_related("user")
+        rows = {}
+        for perm in perms:
+            item = rows.setdefault(perm.user, {})
+            item['can_insert'] = self.canInsert(perm.user, perm)
+            item['can_update'] = self.canUpdate(perm.user, perm)
+            item['can_delete'] = self.canDelete(perm.user, perm)
+
+        return rows
 
     @classmethod
     def create(cls, table, columns, commit=False):
@@ -144,9 +244,9 @@ class Column(SchemataItem):
         self.name = name
         self.type = type
         self.is_pk = is_pk
-        self.srid = None
-        self.geom_type = None
+        self.srid = srid
+        self.geom_type = geom_type
 
         self.type_label = ColumnTypes.toString(self.type)
 
-from .dbhelpers import sanitize
+from .dbhelpers import sanitize, SQLHandle

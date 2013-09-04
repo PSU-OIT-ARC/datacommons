@@ -12,6 +12,8 @@ class JSONEncoder(json.JSONEncoder):
             return o.isoformat()
         if isinstance(o, GEOSGeometry):
             return str(o)
+        if hasattr(o, 'toJSON'):
+            return o.toJSON()
         if isinstance(o, SchemataItem): 
             return o.__dict__
         return super(JSONEncoder, self).default(o)

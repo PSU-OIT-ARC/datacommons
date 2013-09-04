@@ -42,20 +42,20 @@ class ImportableUploadForm(BetterForm):
 
     def clean_file(self):
         file = self.cleaned_data["file"]
-        self.importable = None
+        self.model = None
 
         if not file:
             return None
 
         try:
             # attempt an upload
-            self.importable = self.IMPORTABLE.upload(file)
+            self.model = self.MODEL.upload(file)
         except TypeError as e:
             raise forms.ValidationError(str(e))
 
         # try to parse it
         try:
-            self.importable.parse()
+            self.model.parse()
         except UnicodeDecodeError as e:
             raise forms.ValidationError("The file has corrupt characters on line %d. Edit the file and remove or replace the invalid characters" % (e.line))
         except shapefile.ShapefileException as e:
@@ -131,7 +131,7 @@ class ImportableUploadForm(BetterForm):
 
         # compare the number of columns in the table, and the csv
         existing_columns = getColumnsForTable(schema, table)
-        header, data, types = self.importable.parse()
+        header, data, types = self.model.parse()
         if len(existing_columns) != len(header):
             self._errors['file'] = self.error_class(["The number of columns in the CSV you selected does not match the number of columns in the table you selected"])
             del cleaned_data['file']
@@ -144,7 +144,7 @@ class ImportableUploadForm(BetterForm):
         schema = cleaned_data.get("schema", "")
         if len(self._errors) == 0 and mode in [ImportableUpload.DELETE]:
             pks = getPrimaryKeysForTable(schema, table)
-            header, data, types = self.importable.parse()
+            header, data, types = self.model.parse()
             if len(pks) != len(header):
                 self._errors['file'] = self.error_class(['The number of columns in the CSV must match the number of primary keys in the table you selected'])
 
@@ -166,18 +166,15 @@ class ImportableUploadForm(BetterForm):
         Create the ImportableUpload object, and add or attach the
         corresponding table object
         """
-        filename = os.path.basename(self.importable.path)
-        r = ImportableUpload()
-        r.filename = filename
-        r.mode = self.cleaned_data['mode']
-        r.user = self.user
+        self.model.mode = self.cleaned_data['mode']
+        self.model.user = self.user
 
         owner = self.user
 
-        if r.mode != ImportableUpload.CREATE:
+        if self.model.mode != ImportableUpload.CREATE:
             # find the table object, and tack it onto the
             # ImportableUpload object
-            r.table = Table.objects.get(
+            self.model.table = Table.objects.get(
                 name=self.cleaned_data['table'],
                 schema=self.cleaned_data['schema'],
             )
@@ -189,26 +186,24 @@ class ImportableUploadForm(BetterForm):
                 owner=owner,
             )
             t.save()
-            r.table = t
+            self.model.table = t
 
-        r.save()
-        return r
+        self.model.save()
+        return self.model
 
 class ImportablePreviewForm(BetterForm):
     """This form allows the user to specify the names and types of the columns
     in their uploaded CSV (see ImportableUploadForm) IF they are creating a new table. 
     Or this form allows them to select which existing columns in the table
     match up with their uploaded CSV"""
-    IMPORTABLE = None 
     # we add all the fields dynamically here
     def __init__(self, *args, **kwargs):
-        self.upload = kwargs.pop("upload")
+        self.model = kwargs.pop("model")
         super(ImportablePreviewForm, self).__init__(*args, **kwargs)
 
-        self.importable = self.IMPORTABLE(self.upload.filename)
-        column_names, data, column_types = self.importable.parse()
+        column_names, data, column_types = self.model.parse()
 
-        if self.upload.mode == ImportableUpload.CREATE:
+        if self.model.mode == ImportableUpload.CREATE:
             # show text field for table name
             self.fields['table'] = forms.CharField()
             # fields for each column name, and data type
@@ -226,11 +221,11 @@ class ImportablePreviewForm(BetterForm):
             for i, column_name in enumerate(column_names):
                 self.fields['is_pk_%d' % (i, )] = forms.BooleanField(initial=False, required=False)
 
-        elif self.upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
-            if self.upload.mode == ImportableUpload.DELETE:
-                existing_column_names = getPrimaryKeysForTable(self.upload.table.schema, self.upload.table.name)
+        elif self.model.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
+            if self.model.mode == ImportableUpload.DELETE:
+                existing_column_names = getPrimaryKeysForTable(self.model.table.schema, self.model.table.name)
             else:
-                existing_columns = getColumnsForTable(self.upload.table.schema, self.upload.table.name)
+                existing_columns = getColumnsForTable(self.model.table.schema, self.model.table.name)
                 existing_column_names = [c.name for c in existing_columns]
 
             choices = [(c, c) for c in existing_column_names]
@@ -291,15 +286,15 @@ class ImportablePreviewForm(BetterForm):
                     self._errors[k] = self.error_class(["Not a valid column name"])
                     cleaned_data.pop(k, None)
 
-        if self.upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]:
+        if self.model.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]:
             # make sure the column names match the existing table
-            existing_columns = getColumnsForTable(self.upload.table.schema, self.upload.table.name)
+            existing_columns = getColumnsForTable(self.model.table.schema, self.model.table.name)
             existing_column_names = [c.name for c in existing_columns]
             if set(existing_column_names) != set(names):
                 raise forms.ValidationError("The columns must match the existing table")
 
         # make sure at least one pk is defined
-        if self.upload.mode == ImportableUpload.CREATE:
+        if self.model.mode == ImportableUpload.CREATE:
             for k, v in self.fields.items():
                 if k.startswith("is_pk"):
                     if cleaned_data.get(k):
@@ -316,11 +311,7 @@ class ImportablePreviewForm(BetterForm):
 
             try:
                 self._createTable(upload.table)
-                self.importable.importInto(
-                    upload.table,
-                    column_name_to_column_index=self._mapColumnNameToColumnIndex(),
-                    mode=upload.mode,
-                    user=upload.user)
+                self.model.importInto(column_name_to_column_index=self._mapColumnNameToColumnIndex())
             except DatabaseError as e:
                 raise
 
@@ -330,12 +321,7 @@ class ImportablePreviewForm(BetterForm):
         elif upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
             # insert all the data
             try:
-                self.importable.importInto(
-                    upload.table,
-                    column_name_to_column_index=self._mapColumnNameToColumnIndex(),
-                    mode=upload.mode,
-                    user=upload.user,
-                )
+                self.model.importInto(column_name_to_column_index=self._mapColumnNameToColumnIndex())
             except DatabaseError as e:
                 raise
 
@@ -354,7 +340,6 @@ class ImportablePreviewForm(BetterForm):
         primary_keys = set(self._cleanedPrimaryKeyColumnNames())
 
         columns = []
-        import pdb; pdb.set_trace()
         for name, type in zip(column_names, column_types):
             columns.append(schemata.Column(name, type, name in primary_keys))
 

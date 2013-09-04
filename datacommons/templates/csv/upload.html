@@ -1,6 +1,6 @@
 {% extends "main.html" %}
 {% block content %}
-<h2>Import a CSV</h2>
+<h2>Import a {{ filetype }}</h2>
 
 <form action="" method="post" enctype="multipart/form-data" class="strong-labels">
     {% csrf_token %}
@@ -10,7 +10,7 @@
         </div>
     {% endif %}
 
-    <label>Which schema should this CSV be imported into?</label>
+    <label>Which schema should this {{ filetype }} be imported into?</label>
     {{ form.schemas.errors }}
 
     {{ form.schema }}
@@ -34,9 +34,11 @@
         </div>
     </div>
 
-    <label>Upload a CSV</label>
+    <label>Upload a {{ filetype }}</label>
     {{ form.file.errors }}
-    <p>The first row of the CSV is assumed to be the column headings.</p>
+    {% if filetype == "CSV" %}
+        <p>The first row of the CSV is assumed to be the column headings.</p>
+    {% endif %}
     {{ form.file }}
 
     <br />
@@ -102,7 +104,12 @@ function populateTables(){
     // get the schema name
     var schema = $('#id_schema').val();
     // get all the tables out of the schema meta data
-    var tables = getSchemaByName(schema).tables;
+    var s = getSchemaByName(schema);
+    if(s){
+        var tables = s.tables;
+    } else {
+        var tables = []
+    }
     // get the currently selected table, so we can restore the selected value,
     // when the option list is regenerated
     var original_selection = $('#id_table').val();
