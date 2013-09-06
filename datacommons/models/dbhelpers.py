@@ -229,18 +229,19 @@ class SQLHandle(object):
         """Iterate over all the rows returned by the query"""
         # if the cursor has already been set (like in the `self.cols` method)
         # use that, otherwise execute the query
-        cursor = self._cursor or self._fetchRowsForQuery()
+        if not self._cursor:
+            self._fetchRowsForQuery()
 
         has_geom = any(c['type'] == ColumnTypes.GEOMETRY for c in self.cols)
 
         # if there is no geometry column, all the type casting is taken care of
         # automagically by python
         if not has_geom:
-            for row in cursor:
+            for row in self._cursor:
                 yield row
         else:
             # we need to cast the geometry columns in the row to a Geometry type
-            for row in cursor:
+            for row in self._cursor:
                 yield self._castRow(row)
 
     def __getitem__(self, key):

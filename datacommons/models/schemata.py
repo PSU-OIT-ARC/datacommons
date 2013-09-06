@@ -1,3 +1,4 @@
+from django.utils.datastructures import SortedDict
 from .models import ColumnTypes, AUDIT_SCHEMA_NAME, TableOrView, TablePermission
 from django.db import models, connection, transaction, DatabaseError, connections
 
@@ -35,18 +36,17 @@ class View(SchemataItem, TableOrView):
     def __init__(self, *args, **kwargs):
         super(View, self).__init__(*args, **kwargs)
         self.columns = []
-        self.name = self.name or kwargs.pop("name")
+        self.name = self.name or kwargs.pop("name", None)
         self.is_view = True
 
     def toJSON(self):
         return {"name": self.name, "columns": self.columns, "is_view": self.is_view}
 
-    @classmethod
-    def create(cls, schema, name, sql, commit=False):
+    def create(self, sql, commit=False):
         # this will raise a database Error is there is a problem with the SQL (hopefully)
         SQLHandle(sql).count()
         cursor = connection.cursor()
-        cursor.execute("SELECT dc_create_view(%s, %s, %s)", (schema.name, name, sql))
+        cursor.execute("SELECT dc_create_view(%s, %s, %s)", (self.schema, self.name, sql))
         if commit:
             transaction.commit_unless_managed()
         else:
@@ -90,7 +90,7 @@ class Table(SchemataItem, TableOrView):
     def __init__(self, *args, **kwargs):
         super(Table, self).__init__(*args, **kwargs)
         self.columns = []
-        self.name = self.name or kwargs.pop("name")
+        self.name = self.name or kwargs.pop("name", None)
         self.is_view = False
 
     def __iter__(self):
@@ -157,14 +157,13 @@ class Table(SchemataItem, TableOrView):
 
         return rows
 
-    @classmethod
-    def create(cls, table, columns, commit=False):
+    def create(self, columns, commit=False):
         column_names = [col.name for col in columns if col.type != ColumnTypes.GEOMETRY]
         column_types = [col.type for col in columns if col.type != ColumnTypes.GEOMETRY]
 
         # santize all the names
-        schema_name = sanitize(table.schema)
-        table_name = sanitize(table.name)
+        schema_name = sanitize(self.schema)
+        table_name = sanitize(self.name)
 
         # sanitize 
         names = []
@@ -197,7 +196,7 @@ class Table(SchemataItem, TableOrView):
         cursor.execute(create_table_sql)
 
         # now add the audit table
-        audit_table_name = table.auditTableName()
+        audit_table_name = self.auditTableName()
         audit_table_sql = """
             CREATE TABLE "%s"."%s" (
                 _version_id INTEGER NOT NULL REFERENCES "version" ("version_id") DEFERRABLE INITIALLY DEFERRED,
@@ -249,4 +248,4 @@ class Column(SchemataItem):
 
         self.type_label = ColumnTypes.toString(self.type)
 
-from .dbhelpers import sanitize, SQLHandle
+from .dbhelpers import sanitize, SQLHandle, getDatabaseTopology

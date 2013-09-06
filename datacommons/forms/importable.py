@@ -223,7 +223,8 @@ class ImportablePreviewForm(BetterForm):
 
         elif self.model.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
             if self.model.mode == ImportableUpload.DELETE:
-                existing_column_names = getPrimaryKeysForTable(self.model.table.schema, self.model.table.name)
+                existing_columns = getPrimaryKeysForTable(self.model.table.schema, self.model.table.name)
+                existing_column_names = [c.name for c in existing_columns]
             else:
                 existing_columns = getColumnsForTable(self.model.table.schema, self.model.table.name)
                 existing_column_names = [c.name for c in existing_columns]
@@ -241,12 +242,6 @@ class ImportablePreviewForm(BetterForm):
 
                 self.fields['column_name_%d' % i] = forms.ChoiceField(**params)
 
-    def clean_table(self):
-        """Validate the table name; only applies to create mode"""
-        if not isSaneName(self.cleaned_data['table']):
-            raise forms.ValidationError("Not a valid name")
-        return self.cleaned_data['table']
-    
     def nameFields(self):
         """Return a list of the column name fields so they can be iterated over
         in a template"""
@@ -274,6 +269,12 @@ class ImportablePreviewForm(BetterForm):
                 fields.append(self[k])
         return fields
 
+    def clean_table(self):
+        """Validate the table name; only applies to create mode"""
+        if not isSaneName(self.cleaned_data['table']):
+            raise forms.ValidationError("Not a valid name")
+        return self.cleaned_data['table']
+
     def clean(self):
         cleaned_data = super(ImportablePreviewForm, self).clean()
         names = [] # save a copy of all the column names
@@ -293,6 +294,13 @@ class ImportablePreviewForm(BetterForm):
             if set(existing_column_names) != set(names):
                 raise forms.ValidationError("The columns must match the existing table")
 
+        if self.model.mode in [ImportableUpload.DELETE]:
+            # make sure all the pks are defined
+            existing_columns = getPrimaryKeysForTable(self.model.table.schema, self.model.table.name)
+            existing_column_names = [c.name for c in existing_columns]
+            if set(existing_column_names) != set(names):
+                raise forms.ValidationError("The columns must match the primary keys of the existing table")
+
         # make sure at least one pk is defined
         if self.model.mode == ImportableUpload.CREATE:
             for k, v in self.fields.items():
@@ -304,33 +312,33 @@ class ImportablePreviewForm(BetterForm):
 
         return cleaned_data
 
-    def save(self, upload):
-        if upload.mode == ImportableUpload.CREATE: 
-            upload.table.name = self.cleaned_data['table']
-            upload.table.save()
+    def save(self, model):
+        if model.mode == ImportableUpload.CREATE: 
+            model.table.name = self.cleaned_data['table']
+            model.table.save()
 
             try:
-                self._createTable(upload.table)
+                self._createTable(model.table)
                 self.model.importInto(column_name_to_column_index=self._mapColumnNameToColumnIndex())
             except DatabaseError as e:
                 raise
 
-            upload.table.created_on = datetime.datetime.now()
-            upload.table.save()
+            model.table.created_on = datetime.datetime.now()
+            model.table.save()
 
-        elif upload.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
+        elif model.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
             # insert all the data
             try:
                 self.model.importInto(column_name_to_column_index=self._mapColumnNameToColumnIndex())
             except DatabaseError as e:
                 raise
 
-        upload.status = upload.DONE
-        upload.save()
+        model.status = model.DONE
+        model.save()
 
     def _createTable(self, table):
         columns = self._columns()
-        schemata.Table.create(table, columns)
+        table.create(columns)
 
     def _columns(self):
         """Construct a list of schemata.Column objects that represent the

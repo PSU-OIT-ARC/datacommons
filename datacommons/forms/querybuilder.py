@@ -48,7 +48,7 @@ class CreateViewForm(BetterForm):
         schema = cleaned.get("schema", None)
         if sql and view_name and schema:
             try:
-                schemata.View.create(schemata.Schema(name=schema), view_name, sql, commit=False)
+                schemata.View(schema=schema, name=view_name).create(sql, commit=False)
             except DatabaseError as e:
                 raise forms.ValidationError(str(e))
 
@@ -58,6 +58,6 @@ class CreateViewForm(BetterForm):
         schema = self.cleaned_data['schema']
         view_name = self.cleaned_data['view_name']
         sql = self.cleaned_data['sql']
-        schemata.View.create(schemata.Schema(name=schema), view_name, sql, commit=True)
-        t = Table(name=view_name, schema=schema, created_on=datetime.datetime.now(), is_view=True, owner=self.user)
-        t.save()
+        v = schemata.View(schema=schema, name=view_name, created_on=datetime.datetime.now())
+        v.create(sql, commit=True)
+        v.save()

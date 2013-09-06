@@ -348,14 +348,14 @@ class TableMutator(object):
 
     def deleteRow(self, values):
         """Values is a tuple of pk values that corresponds to the order of self.column_info"""
-        self._doSQL(self.delete_sql, values)
-        self._doSQL(self.audit_delete_sql, values)
+        if self._doSQL(self.delete_sql, values) > 0:
+            self._doSQL(self.audit_delete_sql, values)
 
     def deleteAllRows(self):
         pks = self.pkNames()
-        rows, cols = fetchRowsFor(self.table.schema, self.table.name, pks)
-        for row in rows:
-            tm.deleteRow(row)
+        handle = fetchRowsFor(self.table.schema, self.table.name, pks)
+        for row in handle:
+            self.deleteRow(row)
 
     def pkNames(self):
         return [col.name for col in self.column_info if col.is_pk]
@@ -373,6 +373,8 @@ class TableMutator(object):
             e.sql = connection.queries[-1]['sql']
             raise
 
-from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable, sanitize, internalSanitize, SQLHandle, getDatabaseTopology
+        return cursor.rowcount
+
+from .dbhelpers import getPrimaryKeysForTable, getColumnsForTable, sanitize, internalSanitize, SQLHandle, getDatabaseTopology, fetchRowsFor
 from .importable import ImportableUpload, CSVImport, ShapefileImport
 from .schemata import Table
