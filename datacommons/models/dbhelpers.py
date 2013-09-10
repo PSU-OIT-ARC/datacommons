@@ -84,7 +84,7 @@ def getDatabaseTopology():
             c.column_name,
             CASE WHEN c.data_type = 'USER-DEFINED' THEN 'geometry' ELSE c.data_type END AS data_type,
             pks.constraint_type,
-            CASE WHEN c.data_type = 'USER-DEFINED' THEN Find_SRID(nspname::varchar, t.table_name::varchar, c.column_name::varchar) ELSE NULL END AS srid
+            CASE WHEN c.data_type = 'USER-DEFINED' AND t.table_type != 'VIEW' THEN Find_SRID(nspname::varchar, t.table_name::varchar, c.column_name::varchar) ELSE NULL END AS srid
         FROM
             pg_namespace
         LEFT JOIN
@@ -217,11 +217,9 @@ class SQLHandle(object):
 
             # build up the col info list
             self._cols = [
-            {
-                "name": t.name, 
-                "type_label": ColumnTypes.toString(ColumnTypes.fromPGCursorTypeCode(t.type_code)),
-                "type": ColumnTypes.fromPGCursorTypeCode(t.type_code)
-            } for t in self._cursor.description]
+                Column(name=t.name, type=ColumnTypes.fromPGCursorTypeCode(t.type_code), is_pk=False)
+                for t in self._cursor.description
+            ]
 
         return self._cols
 
@@ -232,7 +230,7 @@ class SQLHandle(object):
         if not self._cursor:
             self._fetchRowsForQuery()
 
-        has_geom = any(c['type'] == ColumnTypes.GEOMETRY for c in self.cols)
+        has_geom = any(c.type == ColumnTypes.GEOMETRY for c in self.cols)
 
         # if there is no geometry column, all the type casting is taken care of
         # automagically by python
@@ -261,7 +259,7 @@ class SQLHandle(object):
         better_row = []
         for val, col in zip(row, self.cols):
             # convert Geom types to GEOSGeometry
-            if col['type'] == ColumnTypes.GEOMETRY:
+            if col.type == ColumnTypes.GEOMETRY:
                 val = GEOSGeometry(val)
             better_row.append(val)
         return better_row

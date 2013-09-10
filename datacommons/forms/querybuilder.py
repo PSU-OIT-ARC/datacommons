@@ -58,6 +58,7 @@ class CreateViewForm(BetterForm):
         schema = self.cleaned_data['schema']
         view_name = self.cleaned_data['view_name']
         sql = self.cleaned_data['sql']
-        v = schemata.View(schema=schema, name=view_name, created_on=datetime.datetime.now())
+        v = schemata.View(schema=schema, name=view_name, created_on=datetime.datetime.now(), owner=self.user)
         v.create(sql, commit=True)
         v.save()
+        return v

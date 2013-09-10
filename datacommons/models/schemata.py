@@ -1,6 +1,7 @@
 from django.utils.datastructures import SortedDict
-from .models import ColumnTypes, AUDIT_SCHEMA_NAME, TableOrView, TablePermission
+from django.conf import settings as SETTINGS
 from django.db import models, connection, transaction, DatabaseError, connections
+from .models import ColumnTypes, AUDIT_SCHEMA_NAME, TableOrView, TablePermission
 
 class SchemataItem(object):
     def __unicode__(self):
@@ -51,6 +52,7 @@ class View(SchemataItem, TableOrView):
             transaction.commit_unless_managed()
         else:
             connection._rollback()
+
 
 class TableManager(models.Manager):
     def get_queryset(self):
@@ -219,8 +221,8 @@ class Table(SchemataItem, TableOrView):
         if has_geom:
             # find the column with the geometry
             col = [col for col in columns if col.srid][0]
-            cls._addGeometryColumn(schema_name, table_name, col, commit=commit)
-            cls._addGeometryColumn(AUDIT_SCHEMA_NAME, audit_table_name, col, commit=commit)
+            self._addGeometryColumn(schema_name, table_name, col, commit=commit)
+            self._addGeometryColumn(AUDIT_SCHEMA_NAME, audit_table_name, col, commit=commit)
 
         # run morgan's fancy proc
         cursor.execute("SELECT dc_set_perms(%s, %s);", (schema_name, table_name))
@@ -229,11 +231,10 @@ class Table(SchemataItem, TableOrView):
         if commit:
             transaction.commit_unless_managed()
 
-    @classmethod
-    def _addGeometryColumn(cls, schema_name, table_name, col, commit=False):
+    def _addGeometryColumn(self, schema_name, table_name, col, commit=False):
         cursor = connection.cursor()
         cursor.execute("""SELECT AddGeometryColumn(%s, %s, %s, %s, %s, 2)""",
-            (schema_name, table_name, col.name, col.srid, col.geom_type))
+            (schema_name, table_name, col.name, SETTINGS.OFFICIAL_SRID, col.geom_type))
 
         if commit:
             transaction.commit_unless_managed()

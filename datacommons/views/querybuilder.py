@@ -49,8 +49,9 @@ def preview(request, sql):
     if request.POST:
         form = CreateViewForm(request.POST, user=request.user)
         if form.is_valid():
-            form.save()
-            return HttpResponse(json.dumps({"success": True}))
+            view = form.save()
+            messages.success(request, "View created!")
+            return HttpResponseRedirect(reverse("schemas-show", args=(view.schema, view.name)))
     else:
         form = CreateViewForm(user=request.user)
 

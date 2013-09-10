@@ -60,6 +60,8 @@ class ImportableUploadForm(BetterForm):
             raise forms.ValidationError("The file has corrupt characters on line %d. Edit the file and remove or replace the invalid characters" % (e.line))
         except shapefile.ShapefileException as e:
             raise forms.ValidationError("Could not import shapefile: %s" % str(e))
+        except ValueError as e:
+            raise forms.ValidationError(str(e))
 
         return file
 
@@ -319,7 +321,7 @@ class ImportablePreviewForm(BetterForm):
 
             try:
                 self._createTable(model.table)
-                self.model.importInto(column_name_to_column_index=self._mapColumnNameToColumnIndex())
+                self.model.importInto(self._columns())
             except DatabaseError as e:
                 raise
 
@@ -329,7 +331,7 @@ class ImportablePreviewForm(BetterForm):
         elif model.mode in [ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.DELETE, ImportableUpload.REPLACE]:
             # insert all the data
             try:
-                self.model.importInto(column_name_to_column_index=self._mapColumnNameToColumnIndex())
+                self.model.importInto(self._columns())
             except DatabaseError as e:
                 raise
 
@@ -344,12 +346,19 @@ class ImportablePreviewForm(BetterForm):
         """Construct a list of schemata.Column objects that represent the
         columns in the table to be created"""
         column_names = self._cleanedColumnNames()
-        column_types = self._cleanedColumnTypes()
-        primary_keys = set(self._cleanedPrimaryKeyColumnNames())
 
-        columns = []
-        for name, type in zip(column_names, column_types):
-            columns.append(schemata.Column(name, type, name in primary_keys))
+        if self.model.mode == ImportableUpload.CREATE:
+            column_types = self._cleanedColumnTypes()
+            primary_keys = set(self._cleanedPrimaryKeyColumnNames())
+
+            columns = []
+            for name, type in zip(column_names, column_types):
+                columns.append(schemata.Column(name, type, name in primary_keys))
+        else:
+            columns = getColumnsForTable(self.model.table.schema, self.model.table.name)
+            # reorder the columns based on the order of the columns_name list
+            column_names_map = dict((col.name, col) for col in columns)
+            columns = [column_names_map[name] for name in column_names]
 
         return columns
 
@@ -379,15 +388,3 @@ class ImportablePreviewForm(BetterForm):
             if k.startswith("type_"):
                 data.append(self.cleaned_data[k])
         return data
-
-    def _mapColumnNameToColumnIndex(self):
-        """Return a map where the key is the column name, and the value is the
-        int representing the order of the column in the csv""" 
-        map = {}
-        index = 0
-        for field_name in self.fields:
-            if field_name.startswith("column_name_"):
-                map[self.cleaned_data[field_name]] = index
-                index += 1
-        return map
-

@@ -2,6 +2,7 @@ import uuid
 import os
 from collections import defaultdict
 from django.db import models, connection, transaction, DatabaseError
+from django.conf import settings as SETTINGS
 from django.utils.datastructures import SortedDict
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 
@@ -159,17 +160,17 @@ class Version(models.Model):
         db_table = 'version'
         ordering = ['created_on']
 
-    def diff(self, column_info):
+    def diff(self, columns):
         table_name = '"%s"."%s"' % (sanitize(self.table.schema), sanitize(self.table.name))
         audit_table_name = '"%s"' % (internalSanitize(self.table.auditTableName()))
 
         safe_params = {
             "table_name": table_name,
-            "pks": ",".join('"%s"' % sanitize(col.name) for col in column_info if col.is_pk), 
+            "pks": ",".join('"%s"' % sanitize(col.name) for col in columns if col.is_pk), 
             "audit_table_name": audit_table_name,
             "audit_schema_name": AUDIT_SCHEMA_NAME,
-            "table_columns": ",".join('%s."%s"' % (table_name, sanitize(col.name)) for col in column_info),
-            "audit_table_columns": ",".join('%s."%s"' % (audit_table_name, col.name) for col in column_info),
+            "table_columns": ",".join('%s."%s"' % (table_name, sanitize(col.name)) for col in columns),
+            "audit_table_columns": ",".join('%s."%s"' % (audit_table_name, col.name) for col in columns),
         }
 
         sql = """
@@ -208,9 +209,9 @@ class Version(models.Model):
 
         cursor.execute(sql, (self.pk,))
         for row in cursor.fetchall():
-            original_data = row[0:len(column_info)]
-            restore_to = row[len(column_info):2*len(column_info)]
-            pk_values = row[len(column_info)*2:-1]
+            original_data = row[0:len(columns)]
+            restore_to = row[len(columns):2*len(columns)]
+            pk_values = row[len(columns)*2:-1]
             action = row[-1]
             yield original_data, restore_to, pk_values, action
 
@@ -221,7 +222,7 @@ class Version(models.Model):
             version.save()
             tm = TableMutator(version)
 
-            rows = self.diff(tm.column_info)
+            rows = self.diff(tm.columns)
             for original_data, restore_to, pk_values, action in rows:
                 if action in ['delete', 'update']:
                     tm.deleteRow(pk_values)
@@ -291,24 +292,28 @@ class TablePermission(models.Model):
         unique_together = ("table", "user")
 
 class TableMutator(object):
-    def __init__(self, version):
+    def __init__(self, version, columns=None):
         self.table = version.table
-        self.column_info = getColumnsForTable(self.table.schema, self.table.name)
+
+        # the caller can pass in the columns, or we can fetch them ourselves
+        if columns is None:
+            self.columns = getColumnsForTable(self.table.schema, self.table.name)
+        else:
+            self.columns = columns
 
         # build SQL query strings for inserting data and deleting data from the
         # table itself, and the audit table
         
         # build the escape string for insert queries. A little complex because
-        # we have to handle Geometry columns. This requires the caller to add
-        # an srid dictionary key to the appropriate column.
+        # we have to handle Geometry columns. 
         escape_string = []
-        for col in self.column_info:
+        for col in self.columns:
             if col.type == ColumnTypes.GEOMETRY:
-                escape_string.append("ST_GeomFromText(%%s, %s)" % (col.srid))
+                escape_string.append("ST_Transform(ST_GeomFromText(%%s, %s), %d)" % (col.srid, SETTINGS.OFFICIAL_SRID))
             else:
                 escape_string.append("%s")
         escape_string = ",".join(escape_string)
-        safe_col_name_str = ",".join('"%s"' % sanitize(col.name) for col in self.column_info)
+        safe_col_name_str = ",".join('"%s"' % sanitize(col.name) for col in self.columns)
         self.insert_sql = """INSERT INTO "%s"."%s" (%s) VALUES(%s)""" % (
             sanitize(self.table.schema), 
             sanitize(self.table.name),
@@ -324,14 +329,14 @@ class TableMutator(object):
         )
 
         # now build the delete SQL strings
-        escape_string = " AND ".join(['"%s" = %%s' % sanitize(col.name) for col in self.column_info if col.is_pk])
+        escape_string = " AND ".join(['"%s" = %%s' % sanitize(col.name) for col in self.columns if col.is_pk])
         self.delete_sql = 'DELETE FROM "%s"."%s" WHERE %s' % (
             sanitize(self.table.schema), 
             sanitize(self.table.name), 
             escape_string
         )
-        escape_string = ",".join(["%s" for col in self.column_info if col.is_pk])
-        safe_pk_name_str = ",".join(['"%s"' % sanitize(col.name) for col in self.column_info if col.is_pk])
+        escape_string = ",".join(["%s" for col in self.columns if col.is_pk])
+        safe_pk_name_str = ",".join(['"%s"' % sanitize(col.name) for col in self.columns if col.is_pk])
         self.audit_delete_sql = """INSERT INTO %s.%s (%s, _inserted_or_deleted, _version_id) VALUES(%s, -1, %s)""" % (
             AUDIT_SCHEMA_NAME,
             internalSanitize(self.table.auditTableName()), 
@@ -342,26 +347,20 @@ class TableMutator(object):
         self.cursor = connection.cursor()
 
     def insertRow(self, values):
-        """Values is a tuple of values that corresponds to the order of self.column_info"""
+        """Values is a tuple of values that corresponds to the order of self.columns"""
         self._doSQL(self.insert_sql, values)
         self._doSQL(self.audit_insert_sql, values)
 
     def deleteRow(self, values):
-        """Values is a tuple of pk values that corresponds to the order of self.column_info"""
+        """Values is a tuple of pk values that corresponds to the order of self.columns"""
         if self._doSQL(self.delete_sql, values) > 0:
             self._doSQL(self.audit_delete_sql, values)
 
     def deleteAllRows(self):
-        pks = self.pkNames()
+        pks = [col.name for col in self.columns if col.is_pk]
         handle = fetchRowsFor(self.table.schema, self.table.name, pks)
         for row in handle:
             self.deleteRow(row)
-
-    def pkNames(self):
-        return [col.name for col in self.column_info if col.is_pk]
-
-    def columnNames(self):
-        return [col.name for col in self.column_info]
 
     def _doSQL(self, sql, params):
         cursor = self.cursor

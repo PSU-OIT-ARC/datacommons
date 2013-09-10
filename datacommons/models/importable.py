@@ -102,19 +102,17 @@ class ImportableUpload(models.Model):
         """
         raise NotImplementedError("You must implement the __iter__ method")
 
-    def importInto(self, column_name_to_column_index):
+    def importInto(self, columns):
         """Read a file and insert into schema_name.table_name"""
         # create a new version for the table
         with transaction.commit_on_success():
             version = Version(user=self.user, table=self.table)
             version.save()
 
-            tm = TableMutator(version)
+            tm = TableMutator(version, columns)
             do_insert = self.mode in [ImportableUpload.CREATE, ImportableUpload.APPEND, ImportableUpload.UPSERT, ImportableUpload.REPLACE]
             do_delete = self.mode in [ImportableUpload.UPSERT, ImportableUpload.DELETE]
 
-            pks = tm.pkNames()
-            column_names = tm.columnNames()
 
             # execute the query string for every row
             try:
@@ -134,16 +132,12 @@ class ImportableUpload(models.Model):
                         row[col_i] = col if col != "" else None
 
                     if do_delete:
-                        # remap the primary key columns since the order of the columns in the CSV does not match
-                        # the order of the columns in the db table
-                        params = [row[column_name_to_column_index[k]] for k in pks]
+                        # extract out the PKs from the row
+                        params = [item for item, col in zip(row, columns) if col.is_pk]
                         tm.deleteRow(params)
 
                     if do_insert:
-                        # remap the columns since the order of the columns in the CSV does not match
-                        # the order of the columns in the db table
-                        params = [row[column_name_to_column_index[k]] for k in column_names]
-                        tm.insertRow(params)
+                        tm.insertRow(row)
             except DatabaseError as e:
                 raise DatabaseError("Tried to insert line %d of the data, got this `%s`. SQL was: `%s`:" % (
                     row_i+1,
@@ -170,9 +164,13 @@ class CSVImport(ImportableUpload):
         # read in the first few rows, and save to a buffer.
         # Continue reading to check for any encoding errors
         try:
+            last_row = None
             for i, row in enumerate(self):
                 if i < max_rows:
                     rows.append(row)
+                if last_row != None and len(last_row) != len(row):
+                    raise ValueError("CSV rows are not all the same length. Or maybe you have an extra newline at the bottom of your file")
+                last_row = row
         except UnicodeDecodeError as e:
             # tack on the line number to the exception so the caller can know
             # which line the error was on. The +2 is because i starts at 0, *and*
@@ -189,7 +187,7 @@ class CSVImport(ImportableUpload):
         with open(self.path, 'r') as csvfile:
             reader = UnicodeReader(csvfile)
             for i, row in enumerate(reader):
-                return row
+                return [col.strip() for col in row]
 
     def __iter__(self):
         with open(self.path, 'r') as csvfile:
@@ -197,7 +195,7 @@ class CSVImport(ImportableUpload):
             for i, row in enumerate(reader):
                 # skip over the header row
                 if i == 0: continue
-                yield row
+                yield [col.strip() for col in row]
 
 
 class ShapefileImport(ImportableUpload):
@@ -232,10 +230,11 @@ class ShapefileImport(ImportableUpload):
                 if fnmatch.fnmatch(entry.filename, file_ext_glob):
                     required_files[file_ext_glob] = entry.filename
 
-        missing_files = dict([(k, v) for k, v in required_files.items() if v is None])
+        missing_files = set(k for k, v in required_files.items() if v is None)
         if missing_files:
-            raise ValidationError("Missing some files: %s" % (", ".join(missing_files.keys())))
+            raise ValidationError("Missing some files: %s" % (", ".join(missing_files)))
         # extract the zip
+        # the last part of the path is a guid (except for the .ext part, which we trim off)
         guid = os.path.split(importable.path)[1].split(".")[0]
         extract_to = os.path.join(SETTINGS.MEDIA_ROOT, guid)
         z.extractall(extract_to)
@@ -247,10 +246,9 @@ class ShapefileImport(ImportableUpload):
             new_path = os.path.normpath(os.path.join(SETTINGS.MEDIA_ROOT, guid + ext))
             old_path = os.path.normpath(os.path.join(SETTINGS.MEDIA_ROOT, guid, path))
             os.rename(old_path, new_path)
-            required_files[file_ext_glob] = new_path
 
         # change the path of the importabled object to the .shp file
-        importable.path = required_files['*.shp']
+        importable.filename = guid + '.shp'
 
         return importable
 
