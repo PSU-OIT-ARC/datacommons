@@ -1,37 +1,34 @@
 {% extends "main.html" %}
 {% block content %}
 <h2>Schemas</h2>
-<ol>
 {% for schema in schemas %}
-    <li>{{ schema.name }}
-        {% if schema.tables|length > 0 %}
-            <h5>Tables</h5>
-            <ol>
-            {% for table in schema.tables %}
-                <li>
-                    <a href="{% url "schemas-show" schema table %}">{{ table }}</a>
-                    <a href="{% url "api-schemas-tables" schema table 'csv' %}">(csv)</a>
-                </li>
-            {% endfor %}
-            </ol>
-        {% else %}
-            (empty)
-        {% endif %}
+    <h4>{{ schema.name }}</h4>
+    {% if schema.tables|length > 0 %}
+        <h5>Tables</h5>
+        <ol>
+        {% for table in schema.tables %}
+            <li>
+                <a href="{% url "schemas-show" schema table %}">{{ table }}</a>
+                <a href="{% url "api-schemas-tables" schema table 'csv' %}">(csv)</a>
+            </li>
+        {% endfor %}
+        </ol>
+    {% endif %}
 
-        {% if schema.views|length > 0 %}
-            <h5>Views</h5>
-            <ol>
-            {% for table in schema.views %}
-                <li>
-                    <a href="{% url "schemas-show" schema table %}">{{ table }}</a>
-                    <a href="{% url "api-schemas-tables" schema table 'csv' %}">(csv)</a>
-                </li>
-            {% endfor %}
-            </ol>
-        {% else %}
-            (empty)
-        {% endif %}
-    </li>
+    {% if schema.views|length > 0 %}
+        <h5>Views</h5>
+        <ol>
+        {% for table in schema.views %}
+            <li>
+                <a href="{% url "schemas-show" schema table %}">{{ table }}</a>
+                <a href="{% url "api-schemas-tables" schema table 'csv' %}">(csv)</a>
+            </li>
+        {% endfor %}
+        </ol>
+    {% endif %}
+
+    {% if schema.views|length == 0 and schema.tables|length == 0 %}
+        (empty)
+    {% endif %}
 {% endfor %}
-</ol>
 {% endblock %}
