@@ -9,7 +9,6 @@
         {% for table in schema.tables %}
             <li>
                 <a href="{% url "schemas-show" schema table %}">{{ table }}</a>
-                <a href="{% url "api-schemas-tables" schema table 'csv' %}">(csv)</a>
             </li>
         {% endfor %}
         </ol>
@@ -21,7 +20,6 @@
         {% for table in schema.views %}
             <li>
                 <a href="{% url "schemas-show" schema table %}">{{ table }}</a>
-                <a href="{% url "api-schemas-tables" schema table 'csv' %}">(csv)</a>
             </li>
         {% endfor %}
         </ol>

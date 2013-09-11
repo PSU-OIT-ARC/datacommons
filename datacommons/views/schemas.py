@@ -11,13 +11,14 @@ from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseTopology
 )
-from ..models import ColumnTypes, Table, TablePermission, Version, User
-from ..forms.schemas import PermissionsForm, TablePermissionsForm, CreateSchemaForm
+from ..models import ColumnTypes, Table, TablePermission, Version, User, TableOrView
+from ..forms.schemas import PermissionsForm, TablePermissionsForm, CreateSchemaForm, DeleteViewForm
 
 @login_required
 def tables(request):
     """Display a nested list of all the schemas and tables in the database"""
-    schemas = getDatabaseTopology()
+    schemas = getDatabaseTopology(owner=request.user)
+
     return render(request, "schemas/list.html", {
         "schemas": schemas,
     })
@@ -30,7 +31,7 @@ def show(request, schema_name, table_name):
     version_id = request.GET.get("version_id")
     version = None
     try:
-        table = Table.objects.get(schema=schema_name, name=table_name)
+        table = TableOrView.objects.get(schema=schema_name, name=table_name)
     except Table.DoesNotExist:
         table = None
 
@@ -56,11 +57,28 @@ def show(request, schema_name, table_name):
     return render(request, "schemas/show.html", {
         "rows": rows,
         "cols": pageable.cols,
-        "schema": schema_name,
-        "table": table_name,
+        "has_geom": next((col for col in pageable.cols if col.type == ColumnTypes.GEOMETRY), False),
+        "table": table,
         "versions": versions,
         "version": version,
         "show_restore_link": show_restore_link,
+    })
+
+@login_required
+def delete(request, schema_name, table_name):
+    table = TableOrView.objects.get(schema=schema_name, name=table_name)
+    if request.POST:
+        form = DeleteViewForm(request.POST, table=table)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "View deleted")
+            return HttpResponseRedirect(reverse("schemas-tables"))
+    else:
+        form = DeleteViewForm(table=table)
+
+    return render(request, "schemas/delete.html", {
+        "form": form,
+        "table": table,
     })
 
 @login_required

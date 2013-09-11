@@ -53,6 +53,11 @@ class View(SchemataItem, TableOrView):
         else:
             connection._rollback()
 
+    def delete(self):
+        cursor = connection.cursor()
+        cursor.execute('DROP VIEW "%s"."%s";' % (sanitize(self.schema), sanitize(self.name)))
+        transaction.commit_unless_managed()
+        super(View, self).delete()
 
 class TableManager(models.Manager):
     def get_queryset(self):

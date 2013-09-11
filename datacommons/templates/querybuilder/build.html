@@ -13,7 +13,7 @@
         <div>
             <a href="#" class="btn btn-small" id="toggle-totals">Totals</a>
             <a href="#" class="btn btn-small" id="view-sql">View SQL</a>
-            <a href="#" class="btn btn-small" id="run-sql" target="preview">Preview</a>
+            <a href="#" class="btn btn-small" id="run-sql" target="preview-{% now "U" %}">Preview</a>
         </div>
         <br style="clear:both" />
     </div>
@@ -92,7 +92,12 @@ $(document).ready(function(){
     });
 
     $('#run-sql').click(function(e){
-        var sql_string = query_state.toSQL();
+        try {
+            var sql_string = query_state.toSQL();
+        } catch(e){
+            alert(e);
+            return false;
+        }
         $(this).attr("href", "{% url 'querybuilder-preview' %}" + "/" + encodeURIComponent(sql_string))
     });
 

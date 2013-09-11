@@ -138,3 +138,11 @@ class CreateSchemaForm(BetterForm):
     def save(self):
         name = self.cleaned_data['name']
         schemata.Schema.create(name)
+
+class DeleteViewForm(BetterForm):
+    def __init__(self, *args, **kwargs):
+        self.table = kwargs.pop("table")
+        super(DeleteViewForm, self).__init__(*args, **kwargs)
+
+    def save(self):
+        self.table.delete()

@@ -31,7 +31,7 @@ function parseSchemata(schemata){
     for(var i = 0; i < schemata.length; i++){
         var s = schemata[i];
         var schema = new Schema(s.name);
-        var tables = s.tables;
+        var tables = s.tables.concat(s.views)
         for(var j = 0; j < tables.length; j++){
             var t = tables[j];
             var table = new Table(t.name, schema);
@@ -926,6 +926,9 @@ QueryState.prototype.toSQL = function(){
 
     var sql = {}
     sql = this.query_columns_view.toSQL(sql);
+    if(sql.select[0] == "*"){
+        throw "You must choose at least one column to view in your query. Click a column name from one of the tables to add it to your query.";
+    }
     sql = this.relationship_view.toSQL(sql);
 
     var sql_string = "SELECT " + sql.select.join(", ");

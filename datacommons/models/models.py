@@ -3,8 +3,9 @@ import os
 from collections import defaultdict
 from django.db import models, connection, transaction, DatabaseError
 from django.conf import settings as SETTINGS
+from django.contrib import admin
 from django.utils.datastructures import SortedDict
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
 AUDIT_SCHEMA_NAME = "_version"
 
@@ -19,14 +20,13 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-class User(AbstractBaseUser):
+class User(AbstractBaseUser, PermissionsMixin):
     id = models.AutoField(primary_key=True)
     email = models.EmailField(unique=True, db_index=True)
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
     date_joined = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True, blank=True)
-    is_superuser = models.BooleanField(default=False, blank=True)
     is_staff = models.BooleanField(default=False, blank=True)
 
     USERNAME_FIELD = 'email'
@@ -36,6 +36,10 @@ class User(AbstractBaseUser):
     class Meta:
         db_table = "auth_user"
 
+    def get_short_name(self):
+        return self.email
+
+admin.site.register(User)
 
 class ColumnTypes:
     """An enum for column types"""
@@ -154,13 +158,21 @@ class Version(models.Model):
     created_on = models.DateTimeField(auto_now_add=True)
 
     user = models.ForeignKey(User)
-    table = models.ForeignKey('Table')
+    table = models.ForeignKey('TableOrView')
 
     class Meta:
         db_table = 'version'
         ordering = ['created_on']
 
     def diff(self, columns):
+        """Compares this version of the table with the current version. Returns
+        an iterator of 4-tuples, where each element in the 4-tuple is:
+            * a row from the current version of the table
+            * the corresponding row from this version of the table
+            * a tuple of the primary key values (these will be the same for the current and old version)
+            * a string "update", "insert" or "delete" that indicates should be
+              done to the current table to make it match this version 
+        """
         table_name = '"%s"."%s"' % (sanitize(self.table.schema), sanitize(self.table.name))
         audit_table_name = '"%s"' % (internalSanitize(self.table.auditTableName()))
 

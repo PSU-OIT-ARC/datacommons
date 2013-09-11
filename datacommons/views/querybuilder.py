@@ -16,10 +16,15 @@ from ..models.dbhelpers import (
 )
 from ..models import ColumnTypes, Table, TablePermission, Version
 from ..forms.querybuilder import CreateViewForm
+from ..models.schemata import View
 from datacommons.jsonencoder import JSONEncoder
 
 def build(request):
-    meta = getDatabaseTopology()
+    meta = getDatabaseTopology(owner=request.user)
+    # filter out all views not owned by this user
+    for schema in meta:
+        schema.views = [v for v in schema.views if getattr(v, 'owner_id') == request.user.pk]
+
     return render(request, "querybuilder/build.html", {
         "schemata": json.dumps(meta, cls=JSONEncoder),
     })

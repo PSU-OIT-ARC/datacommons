@@ -75,7 +75,7 @@ def _isValidValueAsPGType(value, type):
 
     return True
 
-def getDatabaseTopology():
+def getDatabaseTopology(owner=None):
     sql = """
         SELECT
             nspname,
@@ -143,6 +143,14 @@ def getDatabaseTopology():
         if not column_name: continue
 
         table.columns.append(Column(column_name, ColumnTypes.fromPGTypeName(data_type), constraint_type is not None, srid=srid))
+
+    if owner:
+        views = set((v.schema, v.name) for v in TableOrView.objects.filter(owner=owner))
+        for schema in topology:
+            for v in schema.views + schema.tables:
+                if (schema.name, v.name) in views:
+                    v.owner = owner
+                    v.owner_id = owner.pk
 
     return topology
 
@@ -277,5 +285,5 @@ class SQLHandle(object):
             self._cursor.execute(sql, self._params)
 
 
-from .models import ColumnTypes, AUDIT_SCHEMA_NAME
+from .models import ColumnTypes, AUDIT_SCHEMA_NAME, TableOrView
 from .schemata import Schema, View, Table, Column

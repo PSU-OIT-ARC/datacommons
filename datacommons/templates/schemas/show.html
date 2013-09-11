@@ -3,9 +3,13 @@
 
 <div class="row">
     <div class="span8">
-        <h2>{{ schema }}.{{ table }}</h2>
-        <p><strong>Export:</strong> <a href="{% url "api-schemas-tables" schema table 'csv' %}?version_id={{ version.pk }}">CSV</a> | 
-        <a href="{% url "api-schemas-tables" schema table 'json' %}?version_id={{ version.pk }}">JSON</a></p>
+        <h2>{{ table.schema }}.{{ table.name }}</h2>
+        <p><strong>Export:</strong> <a href="{% url "api-schemas-tables" table.schema table.name 'csv' %}?version_id={{ version.pk }}">CSV</a> | 
+        <a href="{% url "api-schemas-tables" table.schema table.name 'json' %}?version_id={{ version.pk }}">JSON</a> 
+        {% if has_geom %}| 
+            <a href="{% url "api-schemas-tables" table.schema table.name 'kml' %}?version_id={{ version.pk }}">KML</a> |
+            <a href="{% url "api-schemas-tables" table.schema table.name 'zip' %}?version_id={{ version.pk }}">Shapefile (zip)</a>
+        {% endif %}</p>
 
         {% include '_paginator.html' with paginator=rows %}
 
@@ -42,18 +46,23 @@
         {% include '_paginator.html' with paginator=rows %}
     </div>
 
+        {{ version.pk }}
     <div class="span4">
         {% if versions %}
             <h4>Versions</h4>
-            <ul>
+            <ol>
                 {% for v in versions %}
-                    <li><a {% if version.pk == v.pk %}style="font-weight:bold"{% endif %}href="?version_id={{ v.pk }}">{{ v.created_on|date:"M-d-Y P" }}</a></li>
+                    <li><a {% if version.pk == v.pk %}style="font-weight:bold"{% endif %}href="?version_id={{ v.pk }}" title="{{ v.user }}">{{ v.created_on|date:"M-d-Y P" }}</a></li>
                 {% endfor %}
-            </ul>
+            </ol>
         {% endif %}
 
         {% if show_restore_link %}
             <a href="{% url 'schemas-restore' version.pk %}" class="btn btn-small btn-warning">Restore to this version</a>
+        {% endif %}
+
+        {% if table.is_view and table.owner == user %}
+            <a href="{% url 'schemas-delete' table.schema table.name %}" class="btn btn-danger">Delete View</a>
         {% endif %}
     </div>
 </div>

@@ -35,6 +35,7 @@ urlpatterns = patterns('',
     url(r'^schema/permissions/(\d+)/?$', schemas.permissionsDetail, name="schemas-permissions-detail"),
     url(r'^schemas/create/?$', schemas.create, name="schemas-create"),
     url(r'^schemas/restore/(\d+)/?$', schemas.restore, name="schemas-restore"),
+    url(r'^schemas/delete/(.*)/(.*)/?$', schemas.delete, name="schemas-delete"),
 
     # api
     url(r'^api/schemas/(.*)/tables/(.*)\.(.*)$', api.view, name="api-schemas-tables"),
