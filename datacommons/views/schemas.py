@@ -6,12 +6,14 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from django.db.models import Q
+from django.db import DatabaseError
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseTopology
 )
 from ..models import ColumnTypes, Table, TablePermission, Version, User, TableOrView
+from ..models.schemata import View
 from ..forms.schemas import PermissionsForm, TablePermissionsForm, CreateSchemaForm, DeleteViewForm
 
 @login_required
@@ -66,13 +68,21 @@ def show(request, schema_name, table_name):
 
 @login_required
 def delete(request, schema_name, table_name):
-    table = TableOrView.objects.get(schema=schema_name, name=table_name)
+    table = TableOrView.objects.get(schema=schema_name, name=table_name, owner=request.user)
+    if table.is_view:
+        # cast to a view
+        table = View.objects.get(pk=table.pk)
+
     if request.POST:
         form = DeleteViewForm(request.POST, table=table)
         if form.is_valid():
-            form.save()
-            messages.success(request, "View deleted")
-            return HttpResponseRedirect(reverse("schemas-tables"))
+            try:
+                form.save()
+            except DatabaseError as e:
+                form.errors['__all__'] = form.error_class(['Cannot delete view. Database said: %s' % str(e)])
+            else:
+                messages.success(request, "View deleted")
+                return HttpResponseRedirect(reverse("schemas-tables"))
     else:
         form = DeleteViewForm(table=table)
 

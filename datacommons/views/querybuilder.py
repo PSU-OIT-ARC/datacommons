@@ -12,7 +12,8 @@ from django.db import DatabaseError
 from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseTopology,
-    SQLHandle
+    SQLHandle,
+    sanitizeSelectSQL
 )
 from ..models import ColumnTypes, Table, TablePermission, Version
 from ..forms.querybuilder import CreateViewForm
@@ -31,6 +32,16 @@ def build(request):
 
 
 def preview(request, sql):
+    # make sure the sql is valid
+    try:
+        sql = sanitizeSelectSQL(sql)
+    except ValueError as e:
+        return render(request, "querybuilder/preview.html", {
+            "error": str(e),
+            "sql": sql,
+        })
+
+    # if we are here, we can assume the SQL is safe (hopefully!)
     q = SQLHandle(sql)
     paginator = Paginator(q, 100)
     error = None

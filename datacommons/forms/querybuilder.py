@@ -10,7 +10,7 @@ from .utils import BetterModelForm, BetterForm
 from django.conf import settings as SETTINGS
 from django.contrib.auth.forms import PasswordChangeForm
 from datacommons.models import User, Table
-from ..models.dbhelpers import isSaneName, SQLHandle, getDatabaseTopology
+from ..models.dbhelpers import isSaneName, SQLHandle, getDatabaseTopology, sanitizeSelectSQL
 from ..models import schemata
 
 class CreateViewForm(BetterForm):
@@ -36,8 +36,9 @@ class CreateViewForm(BetterForm):
     def clean_sql(self):
         sql = self.cleaned_data['sql']
         try:
+            sql = sanitizeSelectSQL(sql)
             SQLHandle(sql).count()
-        except DatabaseError as e:
+        except (DatabaseError, ValueError) as e:
             raise forms.ValidationError(str(e))
         return sql
 

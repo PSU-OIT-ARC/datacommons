@@ -5,3 +5,4 @@ pytz==2012j
 wsgiref==0.1.2
 Shapely==1.2.17
 requests==1.2.3
+sqlparse==0.1.8

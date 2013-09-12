@@ -1,6 +1,7 @@
 from django.db import IntegrityError, transaction
 from django import forms
 from django.utils.datastructures import SortedDict
+from django.db import DatabaseError
 from ..models import TablePermission, Table, User
 from ..models.dbhelpers import getDatabaseTopology, isSaneName
 import widgets
@@ -146,3 +147,5 @@ class DeleteViewForm(BetterForm):
 
     def save(self):
         self.table.delete()
+
+

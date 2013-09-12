@@ -55,7 +55,7 @@ class View(SchemataItem, TableOrView):
 
     def delete(self):
         cursor = connection.cursor()
-        cursor.execute('DROP VIEW "%s"."%s";' % (sanitize(self.schema), sanitize(self.name)))
+        cursor.execute('SELECT dc_drop_view(%s,%s)', (sanitize(self.schema), sanitize(self.name)))
         transaction.commit_unless_managed()
         super(View, self).delete()
 

@@ -1,4 +1,5 @@
 import re
+import sqlparse
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import connection, transaction, DatabaseError, connections
 
@@ -11,6 +12,35 @@ def sanitize(value):
     value = value.lower().strip()
     value = re.sub(r'\s+', '_', value).strip('_')
     return re.sub(r'[^a-z_0-9]', '', value)
+
+def sanitizeSelectSQL(sql):
+    SAFE_FUNCTIONS = set("COUNT AVG MAX MIN STDDEV SUM".split())
+
+    try:
+        stmt = sqlparse.parse(sql)[0]
+    except IndexError:
+        raise ValueError("Not a valid SQL statement")
+
+    if stmt.get_type() != "SELECT":
+        raise ValueError("Not a SELECT statement")
+
+    function_names = set()
+    i = 0
+    expore = [stmt]
+    while i < len(expore):
+        stmt = expore[i]
+        for token in stmt.tokens:
+            if len(getattr(token, 'tokens', [])) > 0:
+                expore.append(token)
+            if isinstance(token, sqlparse.sql.Function):
+                function_names.add(token.get_name().upper())
+        i += 1
+
+    non_safe_functions = function_names - SAFE_FUNCTIONS
+    if non_safe_functions != set():
+        raise ValueError("You tried to use functions that aren't whitelisted: %s" % ", ".join(non_safe_functions))
+
+    return stmt.to_unicode()
 
 def internalSanitize(value):
     """This differs from sanitize() because it allows names that start or end
