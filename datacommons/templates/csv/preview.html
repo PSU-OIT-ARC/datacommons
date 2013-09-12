@@ -35,6 +35,11 @@ consist only of the characters <samp>a-z</samp>, <samp>0-9</samp> and <samp>_</s
         <h2>Replace all rows in {{ upload.table }}</h2>
     {% endif %}
 
+    {% if form.srid %}
+        <label>SRID</label>
+        {{ form.srid }}
+    {% endif %}
+
     <div id="preview-wrapper">
         <table id="preview">
             <thead>

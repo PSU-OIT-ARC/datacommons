@@ -9,6 +9,10 @@ class ShapefileUploadForm(ImportableUploadForm):
 
 class ShapefilePreviewForm(ImportablePreviewForm):
     MODEL = ShapefileImport
+    srid = forms.TypedChoiceField(choices=(
+        (4326, 4326),
+        (3857, 3857)
+        ), empty_value=None, coerce=int)
 
     def __init__(self, *args, **kwargs):
         super(ShapefilePreviewForm, self).__init__(*args, **kwargs)
@@ -38,7 +42,7 @@ class ShapefilePreviewForm(ImportablePreviewForm):
         columns = super(ShapefilePreviewForm, self)._columns()
         # the last column is assumed to be the geometry column
         # add on the srid and geom type
-        srid = self.model.srid()
+        srid = self.cleaned_data['srid']
         type = self.model.geometryType()
         columns[-1].srid = srid
         columns[-1].geom_type = type
