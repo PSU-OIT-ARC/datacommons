@@ -39,7 +39,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_short_name(self):
         return self.email
 
-admin.site.register(User)
+#admin.site.register(User)
 
 class ColumnTypes:
     """An enum for column types"""
@@ -158,7 +158,7 @@ class Version(models.Model):
     created_on = models.DateTimeField(auto_now_add=True)
 
     user = models.ForeignKey(User)
-    table = models.ForeignKey('TableOrView')
+    table = models.ForeignKey('Table')
 
     class Meta:
         db_table = 'version'
