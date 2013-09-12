@@ -37,10 +37,10 @@ class RegistrationForm(BetterForm):
         user_model = get_user_model()
         email = self.cleaned_data['email']
         password = self.cleaned_data['password']
-        user = user_model.objects.create_user(email=email, password=password, is_active=False)
+        user = user_model.objects.create_user(email=email, password=password, is_active=True)
         user.save() # is this required?
         # send email to user
-        self.sendVerificationEmail(user, request)
+        #self.sendVerificationEmail(user, request)
         return user
 
     def sendVerificationEmail(self, user, request):
