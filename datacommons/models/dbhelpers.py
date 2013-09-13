@@ -14,9 +14,12 @@ def sanitize(value):
     return re.sub(r'[^a-z_0-9]', '', value)
 
 def sanitizeSelectSQL(sql):
+    """This is probably not bulletproof, but good enough for now?"""
     SAFE_FUNCTIONS = set("COUNT AVG MAX MIN STDDEV SUM".split())
 
     try:
+        # because the sql might contain multiple statements, only use the first
+        # one, and drop the rest
         stmt = sqlparse.parse(sql)[0]
     except IndexError:
         raise ValueError("Not a valid SQL statement")
@@ -27,15 +30,18 @@ def sanitizeSelectSQL(sql):
     function_names = set()
     i = 0
     expore = [stmt]
+    # walk through all the tokens, find the ones that are functions, and add
+    # the function name to the list
     while i < len(expore):
-        stmt = expore[i]
-        for token in stmt.tokens:
+        sub_stmt = expore[i]
+        for token in sub_stmt.tokens:
             if len(getattr(token, 'tokens', [])) > 0:
                 expore.append(token)
             if isinstance(token, sqlparse.sql.Function):
                 function_names.add(token.get_name().upper())
         i += 1
 
+    # make sure all the functions being used are safe
     non_safe_functions = function_names - SAFE_FUNCTIONS
     if non_safe_functions != set():
         raise ValueError("You tried to use functions that aren't whitelisted: %s" % ", ".join(non_safe_functions))
