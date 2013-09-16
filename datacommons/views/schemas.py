@@ -12,7 +12,7 @@ from ..models.dbhelpers import (
     fetchRowsFor,
     getDatabaseTopology
 )
-from ..models import ColumnTypes, Table, TablePermission, Version, User, TableOrView
+from ..models import ColumnTypes, Table, TablePermission, Version, User, TableOrView, DownloadLog
 from ..models.schemata import View
 from ..forms.schemas import PermissionsForm, TablePermissionsForm, CreateSchemaForm, DeleteViewForm
 
@@ -32,10 +32,7 @@ def show(request, schema_name, table_name):
 
     version_id = request.GET.get("version_id")
     version = None
-    try:
-        table = TableOrView.objects.get(schema=schema_name, name=table_name)
-    except Table.DoesNotExist:
-        table = None
+    table = get_object_or_404(TableOrView, schema=schema_name, name=table_name)
 
     if version_id:
         version = Version.objects.get(pk=version_id) 
@@ -55,6 +52,13 @@ def show(request, schema_name, table_name):
         rows = paginator.page(paginator.num_pages)
 
     show_restore_link = version and version.pk != versions[-1].pk
+
+    DownloadLog(
+        file_extension="*", 
+        user=request.user,
+        table=table,
+        version=version,
+    ).save()
 
     return render(request, "schemas/show.html", {
         "rows": rows,

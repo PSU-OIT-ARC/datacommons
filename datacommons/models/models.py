@@ -135,6 +135,17 @@ class DocUpload(models.Model):
     def __unicode__(self):
         return u'%s' % (self.filename)
 
+class DownloadLog(models.Model):
+    download_id = models.AutoField(primary_key=True)
+    file_extension = models.CharField(max_length=4)
+    downloaded_on = models.DateTimeField(auto_now_add=True)
+
+    user = models.ForeignKey("User", null=True)
+    table = models.ForeignKey("TableOrView")
+    version = models.ForeignKey("Version", null=True)
+
+    class Meta:
+        db_table = 'downloadlog'
 
 class TableOrView(models.Model):
     table_id = models.AutoField(primary_key=True)

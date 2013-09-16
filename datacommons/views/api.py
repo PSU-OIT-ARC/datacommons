@@ -17,7 +17,7 @@ from django.core.urlresolvers import reverse
 from django.db import DatabaseError, transaction, DatabaseError, connection, connections
 from django.core.exceptions import PermissionDenied
 from ..models.dbhelpers import fetchRowsFor
-from ..models import Version, ColumnTypes
+from ..models import Version, ColumnTypes, DownloadLog, Table
 
 def view(request, schema, table, format):
     """View the table in schema, including the column names and types"""
@@ -28,6 +28,7 @@ def view(request, schema, table, format):
         pageable = version.fetchRows()
     else:
         pageable = fetchRowsFor(schema, table)
+
 
     response = HttpResponse()
     cols = pageable.cols
@@ -91,6 +92,13 @@ def view(request, schema, table, format):
         z.close()
         zip_.seek(0)
         response.write(zip_.read())
+
+    DownloadLog(
+        file_extension=format, 
+        user=request.user if request.user.is_authenticated() else None,
+        table=Table.objects.get(schema=schema, name=table),
+        version=version if version_id else None
+    ).save()
 
     return response 
 
