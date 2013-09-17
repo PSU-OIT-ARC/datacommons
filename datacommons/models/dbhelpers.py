@@ -115,18 +115,19 @@ def getDatabaseTopology(owner=None):
     sql = """
         SELECT
             nspname,
-            t.table_name,
-            t.table_type,
+            t.name,
+            t.is_view,
             c.column_name,
             CASE WHEN c.data_type = 'USER-DEFINED' THEN 'geometry' ELSE c.data_type END AS data_type,
             pks.constraint_type,
-            CASE WHEN c.data_type = 'USER-DEFINED' AND t.table_type != 'VIEW' THEN Find_SRID(nspname::varchar, t.table_name::varchar, c.column_name::varchar) ELSE NULL END AS srid
+            CASE WHEN c.data_type = 'USER-DEFINED' AND not t.is_view THEN Find_SRID(nspname::varchar, t.name::varchar, c.column_name::varchar) ELSE NULL END AS srid
         FROM
             pg_namespace
         LEFT JOIN
-            information_schema.tables t ON t.table_schema = nspname
-        LEFT JOIN 
-            information_schema.columns c on c.table_schema = nspname AND t.table_name = c.table_name
+            -- information_schema.tables t ON t.table_schema = nspname
+        "table" AS t ON t.schema = nspname 
+        LEFT JOIN
+            information_schema.columns c on c.table_schema = nspname AND t.name = c.table_name
         LEFT JOIN (
             SELECT
                 tc.table_schema,
@@ -145,20 +146,19 @@ def getDatabaseTopology(owner=None):
                 tc.table_name = kcu.table_name
             WHERE
                 tc.constraint_type = 'PRIMARY KEY'
-        ) pks ON pks.table_schema = nspname AND pks.table_name = t.table_name AND pks.column_name = c.column_name
-        INNER JOIN "table" ON "table".name = t.table_name AND "table"."schema" = nspname
-        WHERE 
-            pg_namespace.nspowner != 10 AND 
+        ) pks ON pks.table_schema = nspname AND pks.table_name = t.name AND pks.column_name = c.column_name
+        WHERE
+            pg_namespace.nspowner != 10 AND
             nspname != 'geometries' AND
             nspname != %s
-        ORDER BY 
-            nspname, table_name, c.ordinal_position
+        ORDER BY
+            nspname, t.name, c.ordinal_position
     """
     cursor = connection.cursor()
     cursor.execute(sql, (AUDIT_SCHEMA_NAME,))
 
     topology = []
-    for schema_name, table_name, table_type, column_name, data_type, constraint_type, srid in cursor.fetchall():
+    for schema_name, table_name, is_view, column_name, data_type, constraint_type, srid in cursor.fetchall():
         # add the schema object
         if len(topology) == 0 or topology[-1].name != schema_name:
             topology.append(Schema(schema_name))
@@ -167,7 +167,7 @@ def getDatabaseTopology(owner=None):
         # this schema has no tables, so move on
         if not table_name: continue
 
-        if table_type == "VIEW":
+        if is_view:
             if len(schema.views) == 0 or table_name != schema.views[-1].name:
                 schema.views.append(View(name=table_name))
                 table = schema.views[-1]
