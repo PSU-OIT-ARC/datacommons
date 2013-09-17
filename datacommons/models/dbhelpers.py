@@ -146,6 +146,7 @@ def getDatabaseTopology(owner=None):
             WHERE
                 tc.constraint_type = 'PRIMARY KEY'
         ) pks ON pks.table_schema = nspname AND pks.table_name = t.table_name AND pks.column_name = c.column_name
+        INNER JOIN "table" ON "table".name = t.table_name AND "table"."schema" = nspname
         WHERE 
             pg_namespace.nspowner != 10 AND 
             nspname != 'geometries' AND
