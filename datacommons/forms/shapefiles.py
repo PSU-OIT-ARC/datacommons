@@ -10,8 +10,8 @@ class ShapefileUploadForm(ImportableUploadForm):
 class ShapefilePreviewForm(ImportablePreviewForm):
     MODEL = ShapefileImport
     srid = forms.TypedChoiceField(choices=(
-        (4326, 4326),
-        (3857, 3857)
+        (4326, "4326 - WGS 84"),
+        (3857, "3857 - Web Mercator")
         ), empty_value=None, coerce=int)
 
     def __init__(self, *args, **kwargs):
