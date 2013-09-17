@@ -1,0 +1,20 @@
+{% extends "main.html" %}
+{% block content %}
+<h2>{{ upload.schema }}.{{ upload.table }}</h2>
+<table id="preview">
+    <thead>
+        <tr>
+        {% for col in cols %}
+            <th>{{ col.name }}</th>
+        {% endfor %}
+        </tr>
+    </thead>
+    {% for row in rows %}
+        <tr>
+            {% for col in row %}
+                <td>{{ col }}</td>
+            {% endfor %}
+        </tr>
+    {% endfor %}
+</table>
+{% endblock %}

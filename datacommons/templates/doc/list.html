@@ -3,24 +3,24 @@
 {% if doc %}
     <p class="success">You successfully uploaded {{ doc.filename }}!</p>
 {% endif %}
-<table id="preview">
+<table class="table table-striped">
     <thead>
         <tr>
-            <th>User</th>
             <th>File</th>
             <th>Description</th>
             <th>Source</th>
             <th>Uploaded On</th>
+            <th>User</th>
         </tr>
     </thead>
     <tbody>
         {% for doc in docs %}
             <tr>
-                <td>{{ doc.user.username }}</td>
                 <td><a target="_blank" href="{% url 'doc-download' doc.pk %}">{{ doc.filename }}</a></td>
                 <td>{{ doc.description }}</td>
                 <td>{{ doc.source.name }}</td>
-                <td><span class="timestamp">{{ doc.created_on }}</span></td>
+                <td nowrap><span class="timestamp">{{ doc.created_on }}</span></td>
+                <td>{{ doc.user.username }}</td>
             </tr>
         {% endfor %}
     </tbody>

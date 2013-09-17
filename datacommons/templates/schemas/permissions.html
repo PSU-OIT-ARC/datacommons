@@ -1,0 +1,118 @@
+{% extends "main.html" %}
+{% block content %}
+<script type="text/javascript">
+
+$(document).ready(function(){
+    bindAutoComplete();
+    $('#form').submit(onSubmit);
+});
+
+function bindAutoComplete(){
+    $('#id_user').autocomplete({
+        source: function(request, response){
+            $.getJSON("{% url 'schemas-users' %}", {term: request.term}, function(data){
+                var options = []
+                for(var i = 0; i < data.length; i++){
+                    var user = data[i];
+                    options.push({
+                        label: user.first_name + " " + user.last_name + " (" + user.email + ")",
+                        value: user.email,
+                    });
+                }
+                response(options); 
+            });
+        }
+    });
+}
+
+function onSubmit(e){
+    e.preventDefault();
+    $('#id_user').autocomplete("destroy");
+    clearErrors();
+    var form = $('#form').serialize();
+    $.post("{% url 'schemas-grant' %}", form, function(data){
+        var response = $.parseJSON(data);
+        console.log(response);
+        autocomplete_enabled = true;
+        if(response.success){
+            $('#id_user').val("")
+            $('#id_user').select().focus()
+            $('#success-message').show().fadeOut(1500)
+        } else {
+            showErrors(response.errors)
+        }
+        bindAutoComplete();
+    })
+
+    return false;
+}
+
+function clearErrors(){
+    $('.permissions-errors').each(function(){ $(this).html(""); })
+}
+
+function showErrors(errors){
+    for(var k in errors){
+        var error_list = errors[k];
+        var id = "#errors_" + k;
+        var html = [];
+        for(var i = 0; i < error_list.length; i++){
+            html.push(error_list[i]);
+        }
+        $(id).append(html.join(","));
+    }
+}
+
+</script>
+
+<form action="" method="post" id="form" >
+    {% csrf_token %}
+    <h2>Grant/Revoke Permissions</h2>
+    <div style="height:60px">
+        <div class="alert alert-success" id="success-message" style="display:none">Permissions granted/revoked successfully!</div>
+    </div>
+
+    <table id="permissions-table">
+        <tr>
+            <td style="width:100px" class="permission-cell no-margin">
+                <div class="permissions-errors" id="errors_{{ form.option.html_name }}"></div>
+                {{ form.option }}
+            </td>
+            <td style="width:100px" class="permission-cell no-margin">
+                <div class="permissions-errors" id="errors_{{ form.permissions.html_name }}"></div>
+                {{ form.permissions }}
+            </td>
+            <td style="width:30px; text-align:center" class="permission-cell">
+                on
+            </td>
+            <td rowspan="2" style="width:150px; text-align:left" class="permission-cell">
+                <div class="permissions-errors" id="errors_{{ form.tables.html_name }}"></div>
+                {% for schema, field_list in form.schemas.items %}
+                    <label><strong>{{ schema }}</strong></label>
+                    {% for field in field_list %}
+                        <label class="checkbox">{{ field }} {{ field.label }}
+                            <a href="{% url 'schemas-permissions-detail' field.pk %}">(edit)</a>
+                        </label>
+                    {% endfor %}
+                {% endfor %}
+            </td>
+            <td style="width:50px; text-align:center" class="permission-cell">
+                to/from
+            </td>
+            <td class="permission-cell no-margin">
+                <div class="permissions-errors" id="errors_{{ form.user.html_name }}"></div>
+                {{ form.user }}
+                <input type="submit" name="add" value="Apply" id="add" />
+            </td>
+        </tr>
+        <tr>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+        </tr>
+    </table>
+</form>
+
+{% endblock %}

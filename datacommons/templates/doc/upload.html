@@ -1,20 +1,23 @@
 {% extends "main.html" %}
 {% block content %}
 <h2>Upload a Document</h2>
-<form action="" method="post" enctype="multipart/form-data">
-{% csrf_token %}
-<label>{{ form.description.label }}</label>
-{% if form.description.errors %}<p class="error-inline">{% for error in form.description.errors %}{{ error }}{% endfor %}</p>{% endif %}
-{{ form.description }}
+<form action="" method="post" enctype="multipart/form-data" class="strong-labels">
+    {% csrf_token %}
+    <label>{{ form.description.label }}</label>
+    {{ form.description.errors }}
+    {{ form.description }}
 
-<label>{{ form.file.label }}</label>
-{% if form.file.errors %}<p class="error-inline">{% for error in form.file.errors %}{{ error }}{% endfor %}</p>{% endif %}
-{{ form.file }}
-<label>Source</label>
-{% if form.source.errors %}<p class="error-inline">{% for error in form.source.errors %}{{ error }}{% endfor %}</p>{% endif %}
-{{ form.source }}
+    <label>{{ form.file.label }}</label>
+    {{ form.file.errors }}
+    {{ form.file }}
+    <br />
 
-<input type="submit" name="submit" value="Upload" id="submit" />
+    <label>Source</label>
+    {{ form.source.errors }}
+    {{ form.source }}
+
+    <br />
+    <input type="submit" name="submit" value="Upload" id="submit" />
 
 </form>
 

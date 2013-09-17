@@ -1,0 +1,128 @@
+{% extends "main.html" %}
+{% block content %}
+
+<div id="query-builder">
+    <div id="tables" class="table-view-container"></div>
+
+    <div id="schemata" class="schemata-view">
+        <div class="schemata-list">
+        </div>
+    </div>
+
+    <div id="query-columns-container">
+        <div>
+            <a href="#" class="btn btn-small" id="toggle-totals">Totals</a>
+            <a href="#" class="btn btn-small" id="view-sql">View SQL</a>
+            <a href="#" class="btn btn-small" id="run-sql" target="preview-{% now "U" %}">Preview</a>
+        </div>
+        <br style="clear:both" />
+    </div>
+</div>
+
+<script type="text/javascript" src="{{ STATIC_URL }}js/querybuilder.js"></script>
+<script type="text/javascript">
+SCHEMATA = {{ schemata|safe }};
+SCHEMATA = parseSchemata(SCHEMATA);
+$(document).ready(function(){
+    var schemata_view = new SchemataView(SCHEMATA, $('#schemata'));
+    schemata_view.render();
+    
+    var stack_height = 0;
+    var relationship_view = new RelationshipView($('#tables'));
+    relationship_view.render();
+    var query_columns_view = new QueryColumnsView($('#query-columns-container'));
+    query_columns_view.render();
+    var query_state = new QueryState(query_columns_view, relationship_view);
+    // when a table name is clicked in the SchemataView, add it to the page
+    EventRegistry.listenFor("click", function(event){
+        if(!(this instanceof SchemataView)) return;
+        var tv = new TableView(event.table, $('#tables'));
+        tv.render();
+        var offset = tv.element.offset()
+        // do a window cascade based on the stack_height
+        tv.element.css({
+            left: offset.left + 10*stack_height,
+            top: offset.top + 10*stack_height
+        })
+        tv.moved = false;
+        stack_height++;
+        query_state.addTableView(tv);
+    });
+
+    // when a relationship is formed, add it to the view
+    EventRegistry.listenFor("relationship_formed", function(event){
+        relationship_view.addRelationship(event.a, event.b);
+    });
+    // when a tableview is dragged we need to redraw all the connections in the
+    // relationship view (since the lines need to originate from the tableview)
+    EventRegistry.listenFor("drag stop", function(event){
+        if(!(this instanceof TableView)) return;
+        relationship_view.redrawRelationshipsRelatedTo(this);
+        if(!this.moved) stack_height--;
+        this.moved = true;
+    });
+    // when a table is closed, we need to delete all the relationships based on
+    // it
+    EventRegistry.listenFor("closed", function(event){
+        if(!(this instanceof TableView)) return;
+        if(!this.moved) stack_height--;
+        query_state.removeTableView(this);
+    });
+    // when a relationship is dblclicked we want to display a modal options dialog window
+    EventRegistry.listenFor("dblclick", function(event){
+        if(!(this instanceof RelationshipView)) return;
+        console.log(event.relationship);
+    });
+
+    EventRegistry.listenFor("click", function(event){
+        if(!(this instanceof ColumnView)) return;
+        query_columns_view.appendColumn(this);
+    });
+
+    $('#toggle-totals').click(function(e){
+        e.preventDefault();
+        query_columns_view.toggleTotals();
+        $(this).toggleClass("active");
+    });
+
+    $('#view-sql').click(function(e){
+        e.preventDefault();
+        var sql_string = query_state.toSQL();
+        console.log(sql_string);
+    });
+
+    $('#run-sql').click(function(e){
+        try {
+            var sql_string = query_state.toSQL();
+        } catch(e){
+            alert(e);
+            return false;
+        }
+        $(this).attr("href", "{% url 'querybuilder-preview' %}" + "/" + encodeURIComponent(sql_string))
+    });
+
+    $('#create-view').on('submit', function(){
+        var sql_string = query_state.toSQL();
+        $('#actual-sql').val(sql_string);
+        var data = $(this).serialize();
+        $('#error-block-list').html("");
+        $('#error-block').hide();
+        $.post(window.location, data, function(data){
+            if(data.success == false){
+                $('#error-block').show();
+                for(var k in data.errors){
+                    var errors = data.errors[k];
+                    for(var i = 0; i < errors.length; i++){
+                        $('#error-block-list').append("<li>" + errors[i] + "</li>");
+                    }
+                }
+            }
+            console.log(data);
+        }, 'json');
+        return false;
+    });
+});
+
+</script>
+
+{% endblock %}

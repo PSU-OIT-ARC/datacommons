@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block body %}
+
+<div class="alert alert-warning" style="text-align:center">
+    Close this window/tab to return to the query builder
+</div>
+
+{% if error %}
+    <div class="alert alert-error">
+        <h4>There was an error with the SQL:</h4>
+        <p>{{ error }}</p>
+        <p><strong>SQL was:</strong> {{ sql }}</p>
+    </div>
+{% else %}
+    <h4>Preview</h4>
+    <p>You can view your query results here. When you are satisfied, <strong class="alert-success">fill out the form below to save</strong> this query as a view.</p>
+
+    {% if form.errors %}
+        <div class="alert alert-error">
+            <h4>Some errors were detected</h4>
+            {{ form.non_field_errors }}
+        </div>
+    {% endif %}
+
+    <form class="form-inline" method="post" id="create-view">
+        <input type="hidden" name="sql" value="{{ sql }}" />
+        {{ form.schema.errors }}
+        {{ form.view_name.errors }}
+        {% csrf_token %}
+        <strong>Create view in </strong>
+        {{ form.schema }}
+        named
+        {{ form.view_name }}
+        <button class="btn" type="submit">Save</button>
+    </form>
+
+
+    {% include '_paginator.html' with paginator=rows %}
+    <div class="overflowed">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                {% for col in cols %}
+                    <th>{{ col.name }}</th>
+                {% endfor %}
+                </tr>
+                <tr>
+                {% for col in cols %}
+                    <th class="field-type">{{ col.type_label }}</th>
+                {% endfor %}
+                </tr>
+            </thead>
+            {% for row in rows %}
+                <tr>
+                    {% for col in row %}
+                        <td>
+                            {% if col.geom_type %}
+                                {{ col|truncatewords:1 }}
+                            {% else %}
+                                {{ col }}
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    {% include '_paginator.html' with paginator=rows %}
+{% endif %}
+{% endblock %}

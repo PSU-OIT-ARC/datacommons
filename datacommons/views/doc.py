@@ -8,9 +8,8 @@ from django.core.urlresolvers import reverse
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
 from django.core.exceptions import PermissionDenied
-from ..uploader.dochelpers import handleUploadedDoc
-from ..uploader.models import DocUpload
-from ..uploader.forms import DocUploadForm
+from ..models import DocUpload
+from ..forms.docs import DocUploadForm
 
 @login_required
 def upload(request):

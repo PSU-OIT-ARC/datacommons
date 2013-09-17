@@ -1,3 +1,301 @@
+body {
+    width:960px;
+    margin:auto;
+}
+.strong-labels label {
+    font-weight:bold;
+}
+
+.light-labels label {
+    font-weight:normal;
+}
+
+.smashed-labels label:not(:last-child) {
+    margin-bottom:0px;
+}
+
+input[type=file] {
+    margin-bottom:6px;
+}
+
+.overflowed {
+    width:100%;
+    overflow:auto;
+}
+
+.no-margin input, .no-margin select {
+    margin:0;
+}
+
+/* the upload preview form */
+
+#preview-wrapper {
+    width:100%;
+    overflow:auto;
+}
+
+.field-type {
+    font-size:11px;
+    text-align:center;
+}
+
+#preview {
+    border:none;
+    border-collapse:collapse;
+    margin-top:10px;
+    background-color:#fff;
+}
+
+.preview input, .preview select {
+    margin-bottom:5px;
+    margin-top:5px;
+}
+
+#preview td {
+    border:none;
+    border-right:1px solid #efefef;
+    border-left:1px solid  #efefef;
+    padding:3px;
+}
+
+#preview th {
+    border:none;
+    background-color:#efefef;
+    border-right:1px solid #efefef;
+    border-left:1px solid  #efefef;
+    text-align:left;
+    padding:5px;
+}
+
+#preview thead td {
+    vertical-align:bottom;
+}
+
+#preview tbody td {
+    font-family:Courier, "Courier New", monospace;
+    font-size:11px;
+}
+
+/* permissions page */
+
+.permissions-errors {
+    color:#ff0000;
+}
+
+#permissions-table {
+    border-spacing:0;
+}
+
+#permissions-table td {
+    padding:3px;
+}
+
+#permissions-table td.permission-cell {
+    background-color:#e2e2e2;
+    text-align:center;
+    border:none;
+}
+
+#permissions-table tr:last-child td {
+    border:none;
+}
+
+.permissions-table input, .permissions-table select {
+    margin:0;
+}
+
+.permissions-list-editor th {
+    text-align:center;
+}
+
+ul.nested-checkbox {
+    margin-left:0;
+    padding-left:0;
+    list-style-type:none;
+}
+
+.nested-checkbox ul {
+    list-style-type:none;
+    margin-left:0;
+    padding-left:0;
+}
+
+.checkbox-group-heading {
+    font-weight:bold;
+}
+
+/* stuff for the query builder */
+.schemata-view .schemata-list ul {
+    list-style-type:none;
+    margin-left:0;
+    padding-left:0;
+    font-weight:bold;
+}
+
+.schemata-view .schemata-list li ul {
+    font-weight:normal;
+    margin-left:16px;
+}
+
+.schemata-view .schema-name {
+    cursor:pointer;
+}
+
+.schemata-view .table-name {
+    cursor:pointer;
+}
+
+.schemata-view .table-name:hover {
+    text-decoration:underline;
+}
+
+.table-view {
+    border:1px solid black;
+    background-color:#fff;
+    overflow:auto;
+    display:inline-block;
+}
+
+.table-view .header {
+    font-size:11px;
+    background-color:#efefef;
+    color:#000;
+    padding:2px;
+    cursor:move;
+}
+
+.table-view .remove {
+    float:right;
+    font-family:monospace;
+    padding-left:3px;
+    cursor:pointer;
+}
+
+.table-view .columns {
+    padding-left:5px;
+}
+
+.table-view .primary-key {
+    font-weight:bold;
+}
+
+.table-view .table-name {
+    margin-bottom:0;
+    font-style:italic;
+    padding:0px;
+    padding-left:3px;
+}
+
+.table-view { 
+    position:absolute;
+    z-index:2;
+}
+
+.column-view .name:hover {
+    cursor:pointer;
+    text-decoration:underline;
+}
+
+.column-view .droppable {
+    background-color:#00ff00;
+}
+
+.relationship {
+    cursor:pointer;
+    stroke-width:5px;
+    stroke:black;
+    fill:none;
+}
+
+.relationship.active {
+    stroke-width:8px;
+}
+
+.relationship-arrow {
+    cursor:pointer;
+    stroke-width:5px;
+    stroke:black;
+    fill:none;
+}
+
+.query-columns-view input[type='text'],
+.query-columns-view input[type='checkbox'],
+.query-columns-view select {
+    font-size:10px;
+    padding:0px;
+    width:100px;
+    height:auto;
+    margin:0;
+}
+
+.query-columns-view label {
+    height:22px;
+}
+
+.query-columns-view .inner {
+    overflow-x:scroll;
+    background-color:#EBEFF2;
+}
+
+.query-columns-view .qc-row {
+    white-space:nowrap;
+    float:left;
+}
+
+.query-columns-view .qc-col {
+    float:left;
+    display:inline;
+    border-right:1px solid #999;
+    background-color:#fff;
+}
+
+.query-columns-view .qc-col-inner {
+    padding-right:5px;
+    padding-left:5px;
+}
+
+.query-columns-view .handle {
+    height:7px;
+    padding:0px;
+    background-color:#999;
+    line-height:1px;
+}
+
+.query-columns-view .totals {
+    display:none;
+}
+
+/* end querybuilder */
+
+
+#schemata {
+    float:left;
+    width:20%;
+    overflow:auto;
+    height:500px;
+}
+
+#schemata li {
+    white-space:nowrap;
+}
+
+#query-columns-container {
+    clear:both;
+    padding-top:10px;
+}
+
+#tables {
+    float:right;
+    overflow:auto;
+    width:80%;
+    height:500px;
+}
+
+#error, #output {
+    display:none;
+}
+
+/*
 html {
     background:none;
 }
@@ -158,3 +456,8 @@ label {
     font-family:Courier, "Courier New", monospace;
     font-size:11px;
 }
+
+#success-message {
+    display:none;
+}
+*/

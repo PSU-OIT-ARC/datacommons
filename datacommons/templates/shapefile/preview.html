@@ -1,0 +1,16 @@
+{% extends "csv/preview.html" %}
+{% block data_loop %}
+    {% for row in data %}
+        <tr>
+            {% for col in row %}
+                <td>
+                    {% if forloop.last %}
+                        {{ col|truncatewords:1 }}
+                    {% else %}
+                        {{ col }}
+                    {% endif %}
+                </td>
+            {% endfor %}
+        </tr>
+    {% endfor %}
+{% endblock %}

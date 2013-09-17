@@ -1,28 +1,58 @@
 {% extends "base.html" %}
 {% block body %}
-<div id="wrapper">
 <div id="header">
-    <h1><a href="{% url 'home' %}">Datacommons</a></h1>
-    <ul id="nav">
-        {% if user.is_authenticated %}
-            <li><a href="{% url "csv-upload" %}">Import a CSV</a></li>
-            <li><a href="{% url "csv-all" %}">Schema Browser</a></li>
-            <li><a href="{% url "doc-upload" %}">Upload a Document</a></li>
-            <li><a href="{% url "doc-all" %}">Document Browser</a></li>
-            <li><a href="{% url "django.contrib.auth.views.logout" %}">Logout</a></li>
-        {% endif %}
-    </ul>
-    <hr />
+    {% if user.is_authenticated %}
+        <div class="navbar">
+            <div class="navbar-inner">
+                <div class="container">
+                    <a class="brand" href="#">Datacommons</a>
+
+                    <ul class="nav">
+                        <li class="dropdown">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Import <b class="caret"></b></a>
+                            <ul class="dropdown-menu">
+                                <li><a href="{% url "csv-upload" %}">CSV</a></li>
+                                <li><a href="{% url "shapefile-upload" %}">Shapefile</a></li>
+                                <li><a href="{% url "doc-upload" %}">Document</a></li>
+                            </ul>
+                        </li>
+                        <li class="dropdown">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Browse <b class="caret"></b></a>
+                            <ul class="dropdown-menu">
+                                <li><a href="{% url "schemas-tables" %}">Tables/Views</a></li>
+                                <li><a href="{% url "doc-all" %}">Documents</a></li>
+                                <li><a href="{% url "querybuilder-build" %}">Build View</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="{% url "schemas-permissions" %}">Permissions</a></li>
+                        {% if user.is_staff or user.is_admin %}
+                            <li><a href="{% url "schemas-create" %}">Create Schema</a></li>
+                        {% endif %}
+                    </ul>
+                    <ul class="nav pull-right">
+                        <li><a href="{% url 'settings' %}">Account</a></li>
+                        <li><a href="{% url "django.contrib.auth.views.logout" %}">Logout</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    {% endif %}
 </div>
 
 <div id="content">
-    {% block content %}
-    {% endblock %}
+    {% if messages %}
+        <div style="margin-top:10px">
+            {% for message in messages %}
+                <div {% if message.tags %} class="alert alert-{{ message.tags }}"{% endif %}>{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
 </div>
 
 <div id="footer">
     <hr />
     <p>Datacommons &copy; 2013</p>
-</div>
 </div>
 {% endblock %}

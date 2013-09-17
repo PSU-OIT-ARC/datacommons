@@ -1,0 +1,32 @@
+{% extends "main.html" %}
+{% block content %}
+<h2>Schemas</h2>
+{% for schema in schemas %}
+    <h4>{{ schema.name }}</h4>
+    {% if schema.tables|length > 0 %}
+        <h5>Tables</h5>
+        <ol>
+        {% for table in schema.tables %}
+            <li>
+                <a href="{% url "schemas-show" schema table %}">{{ table }}</a>
+            </li>
+        {% endfor %}
+        </ol>
+    {% endif %}
+
+    {% if schema.views|length > 0 %}
+        <h5>Views</h5>
+        <ol>
+        {% for table in schema.views %}
+            <li>
+                <a href="{% url "schemas-show" schema table %}">{{ table }}</a>
+            </li>
+        {% endfor %}
+        </ol>
+    {% endif %}
+
+    {% if schema.views|length == 0 and schema.tables|length == 0 %}
+        (empty)
+    {% endif %}
+{% endfor %}
+{% endblock %}

@@ -14,4 +14,6 @@ $(document).ready(function(){
         if(seconds < 10) seconds = "0" + seconds;
         $(this).text([year, month, day].join("-") + " " + [hours, minutes, seconds].join(":"))
     });
+
+    $('.icon-info-sign').tooltip();
 });
