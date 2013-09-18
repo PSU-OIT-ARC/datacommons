@@ -15,7 +15,7 @@ def sanitize(value):
 
 def sanitizeSelectSQL(sql):
     """This is probably not bulletproof, but good enough for now?"""
-    SAFE_FUNCTIONS = set("COUNT AVG MAX MIN STDDEV SUM".split())
+    SAFE_FUNCTIONS = set("COUNT AVG MAX MIN STDDEV SUM ST_ASKML".split())
 
     try:
         # because the sql might contain multiple statements, only use the first
