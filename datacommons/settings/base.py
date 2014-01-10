@@ -8,7 +8,7 @@ ALLOWED_HOSTS = ['.pdx.edu']
 
 DATETIME_FORMAT = 'c'
 
-AUTH_USER_MODEL = 'models.User'
+AUTH_USER_MODEL = 'accounts.User'
 
 OFFICIAL_SRID = 4326
 
@@ -114,12 +114,20 @@ INSTALLED_APPS = (
     'django.contrib.sites',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'datacommons.models',
+    #'datacommons.models',
     # Uncomment the next line to enable the admin:
     'django.contrib.admin',
     'django.contrib.gis',
     # Uncomment the next line to enable admin documentation:
     # 'django.contrib.admindocs',
+    'datacommons.csvs',
+    'datacommons.shapefiles',
+    'datacommons.querybuilder',
+    'datacommons.api',
+    'datacommons.docs',
+    'datacommons.schemas',
+    'datacommons.accounts',
+    'datacommons.utils',
 )
 
 # A sample logging configuration. The only tangible logging

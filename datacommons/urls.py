@@ -1,5 +1,11 @@
 from django.conf.urls import patterns, include, url
-from .views import csv, doc, schemas, api, shapefile, accounts, querybuilder
+from .csvs import views as csv
+from .docs import views as doc
+from .schemas import views as schemas
+from .api import views as api
+from .shapefiles import views as shapefile
+from .accounts import views as accounts
+from .querybuilder import views as querybuilder
 
 # Uncomment the next two lines to enable the admin:
 from django.contrib import admin

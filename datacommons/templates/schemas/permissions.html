@@ -74,18 +74,18 @@ function showErrors(errors){
 
     <table id="permissions-table">
         <tr>
-            <td style="width:100px" class="permission-cell no-margin">
+            <td class="permission-cell no-margin">
                 <div class="permissions-errors" id="errors_{{ form.option.html_name }}"></div>
                 {{ form.option }}
             </td>
-            <td style="width:100px" class="permission-cell no-margin">
+            <td class="permission-cell no-margin">
                 <div class="permissions-errors" id="errors_{{ form.permissions.html_name }}"></div>
                 {{ form.permissions }}
             </td>
             <td style="width:30px; text-align:center" class="permission-cell">
                 on
             </td>
-            <td rowspan="2" style="width:150px; text-align:left" class="permission-cell">
+            <td rowspan="2" style="text-align:left" class="permission-cell">
                 <div class="permissions-errors" id="errors_{{ form.tables.html_name }}"></div>
                 {% for schema, field_list in form.schemas.items %}
                     <label><strong>{{ schema }}</strong></label>
