@@ -4,8 +4,17 @@ from django.contrib.gis.geos import GEOSGeometry
 from django.db import connection, transaction, DatabaseError, connections
 from datacommons.schemas.models import ColumnTypes, AUDIT_SCHEMA_NAME, TableOrView, Schema, View, Table, Column
 
+# get a list of reserved words
+cur = connection.cursor()
+cur.execute("""Select word from pg_get_keywords() WHERE catcode = 'R'""")
+RESERVED_WORDS = set()
+for word, in cur:
+    RESERVED_WORDS.add(word.lower())
+
 def isSaneName(value):
     """Return true if value is a valid identifier"""
+    if value.lower() in RESERVED_WORDS:
+        return False
     return value == sanitize(value) and len(value) >= 1 and len(value) <= 63 and re.search("^[a-z]", value)
 
 def sanitize(value):
