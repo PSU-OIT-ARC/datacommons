@@ -1,3 +1,4 @@
+import itertools
 from django.utils.datastructures import SortedDict
 from django.conf import settings as SETTINGS
 from django.db import models, connection, transaction, DatabaseError, connections
@@ -310,16 +311,15 @@ class ColumnTypes:
         GEOMETRY: "geometry",
     }
 
-    # maps a *cursor* type code to the enum value
-    # you can get these numbers from the cursor.description
-    FROM_PG_CURSOR_TYPE_CODE = {
-        23: INTEGER,
-        1700: NUMERIC,
-        1114: TIMESTAMP,
-        1184: TIMESTAMP_WITH_ZONE,
-        25: CHAR,
-        16463: GEOMETRY,
-    }
+    # maps a *cursor* type code to the enum value. You can get only get these numbers
+    # from the cursor.description of a query that includes a column of that
+    # particular type. This is necessarily complicated by the fact
+    # that PG type codes vary from database to database, so they have to be
+    # generated at runtime
+    FROM_PG_CURSOR_TYPE_CODE = dict([(
+        ((cur.execute("SELECT NULL::%s" % value) or True) and cur.description[0].type_code), key) 
+        for (key, value), cur in zip(TO_PG_TYPE.items(), itertools.repeat(connection.cursor()))
+    ])
 
     @classmethod
     def toString(cls, enum):
