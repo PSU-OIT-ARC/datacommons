@@ -128,6 +128,7 @@ INSTALLED_APPS = (
     'datacommons.schemas',
     'datacommons.accounts',
     'datacommons.utils',
+    'datacommons.importable',
 )
 
 # A sample logging configuration. The only tangible logging

@@ -1,7 +1,7 @@
 from django import forms
-from datacommons.utils.forms import ImportableUploadForm, ImportablePreviewForm
+from datacommons.importable.forms import ImportableUploadForm, ImportablePreviewForm
 from datacommons.schemas.models import ColumnTypes
-from datacommons.utils.models import ImportableUpload
+from datacommons.importable.models import ImportableUpload
 from .models import ShapefileImport 
 
 class ShapefileUploadForm(ImportableUploadForm):

@@ -1,5 +1,5 @@
 from .models import CSVImport
-from datacommons.utils.forms import ImportableUploadForm, ImportablePreviewForm
+from datacommons.importable.forms import ImportableUploadForm, ImportablePreviewForm
 
 class CSVUploadForm(ImportableUploadForm):
     MODEL = CSVImport 

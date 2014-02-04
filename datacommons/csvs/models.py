@@ -1,5 +1,5 @@
 from django.db import models
-from datacommons.utils.models import ImportableUpload
+from datacommons.importable.models import ImportableUpload
 from datacommons.unicodecsv import UnicodeReader
 from datacommons.utils.dbhelpers import sanitize, inferColumnTypes
 

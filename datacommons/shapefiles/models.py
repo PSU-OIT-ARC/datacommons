@@ -11,7 +11,7 @@ from shapely.geometry import asShape
 from django.db import models 
 from datacommons.schemas.models import ColumnTypes
 from datacommons.utils.dbhelpers import sanitize, inferColumnTypes
-from datacommons.utils.models import ImportableUpload
+from datacommons.importable.models import ImportableUpload
 
 # Create your models here.
 class ShapefileImport(ImportableUpload):

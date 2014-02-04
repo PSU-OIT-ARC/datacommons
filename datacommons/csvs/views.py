@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from .forms import CSVUploadForm, CSVPreviewForm
-from datacommons.utils.views import upload as upload_view, preview as preview_view
+from datacommons.importable.views import upload as upload_view, preview as preview_view
 
 @login_required
 def upload(request):

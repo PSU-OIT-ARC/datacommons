@@ -1,5 +1,5 @@
 from django.contrib.auth.decorators import login_required
-from datacommons.utils.views import upload as upload_view, preview as preview_view
+from datacommons.importable.views import upload as upload_view, preview as preview_view
 from .forms import ShapefileUploadForm, ShapefilePreviewForm
 
 @login_required
