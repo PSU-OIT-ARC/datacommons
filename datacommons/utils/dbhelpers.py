@@ -160,7 +160,8 @@ def getDatabaseTopology(owner=None):
         WHERE
             pg_namespace.nspowner != 10 AND
             nspname != 'geometries' AND
-            nspname NOT IN(%s, %s)
+            nspname NOT IN(%s, %s) AND
+            "t"."created_on" IS NOT NULL
         ORDER BY
             nspname, t.name, c.ordinal_position
     """
