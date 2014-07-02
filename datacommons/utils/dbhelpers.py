@@ -135,7 +135,7 @@ def getDatabaseTopology(owner=None):
             pg_namespace
         LEFT JOIN
             -- information_schema.tables t ON t.table_schema = nspname
-        "table" AS t ON t.schema = nspname 
+        "table" AS t ON t.schema = nspname AND t.created_on IS NOT NULL
         LEFT JOIN
             information_schema.columns c on c.table_schema = nspname AND t.name = c.table_name
         LEFT JOIN (
@@ -160,8 +160,7 @@ def getDatabaseTopology(owner=None):
         WHERE
             pg_namespace.nspowner != 10 AND
             nspname != 'geometries' AND
-            nspname NOT IN(%s, %s) AND
-            "t"."created_on" IS NOT NULL
+            nspname NOT IN(%s, %s)
         ORDER BY
             nspname, t.name, c.ordinal_position
     """
