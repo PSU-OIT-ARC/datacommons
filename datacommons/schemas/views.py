@@ -21,6 +21,7 @@ from .forms import PermissionsForm, TablePermissionsForm, CreateSchemaForm, Dele
 def tables(request):
     """Display a nested list of all the schemas and tables in the database"""
     schemas = getDatabaseTopology(owner=request.user)
+    schemas = filter(lambda schema: len(list(schema)) > 0, schemas)
 
     return render(request, "schemas/list.html", {
         "schemas": schemas,
