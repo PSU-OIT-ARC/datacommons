@@ -574,10 +574,8 @@ class TableMutator(object):
             with transaction.atomic():
                 cursor.execute(sql, params)
         except DatabaseError as e:
-            # tack on the SQL statement that caused the error, the last
-            # statement will be a rollback, and the 2nd to last will be the
-            # actual statement that caused the error
-            e.sql = connection.queries[-2]['sql'] if len(connection.queries) >= 2 else ""
+            # tack on the SQL statement that caused the error
+            e.sql = cursor.query
             raise
 
         return cursor.rowcount
