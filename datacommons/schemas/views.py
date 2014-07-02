@@ -34,7 +34,7 @@ def show(request, schema_name, table_name):
 
     version_id = request.GET.get("version_id")
     version = None
-    table = get_object_or_404(TableOrView, schema=schema_name, name=table_name)
+    table = get_object_or_404(TableOrView, schema=schema_name, name=table_name, created_on__isnull=False)
 
     if version_id:
         version = Version.objects.get(pk=version_id) 
@@ -74,7 +74,7 @@ def show(request, schema_name, table_name):
 
 @login_required
 def delete(request, schema_name, table_name):
-    table = TableOrView.objects.get(schema=schema_name, name=table_name, owner=request.user)
+    table = TableOrView.objects.get(schema=schema_name, name=table_name, owner=request.user, created_on__isnull=False)
     if table.is_view:
         # cast to a view
         table = View.objects.get(pk=table.pk)
