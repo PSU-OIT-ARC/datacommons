@@ -21,6 +21,7 @@ class CSVImport(ImportableUpload):
         max_rows = 10
         # read in the first few rows, and save to a buffer.
         # Continue reading to check for any encoding errors
+        i = -1
         try:
             last_row = None
             for i, row in enumerate(self):
