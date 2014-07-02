@@ -160,12 +160,12 @@ def getDatabaseTopology(owner=None):
         WHERE
             pg_namespace.nspowner != 10 AND
             nspname != 'geometries' AND
-            nspname != %s
+            nspname NOT IN(%s, %s)
         ORDER BY
             nspname, t.name, c.ordinal_position
     """
     cursor = connection.cursor()
-    cursor.execute(sql, (AUDIT_SCHEMA_NAME,))
+    cursor.execute(sql, (AUDIT_SCHEMA_NAME, "drupal"))
 
     topology = []
     for schema_name, table_name, is_view, column_name, data_type, constraint_type, srid in cursor.fetchall():
